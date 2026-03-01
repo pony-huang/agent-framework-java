@@ -19,20 +19,21 @@ This project re-implements concepts and patterns from:
 
 ```
 agent-framework-java/
-├── src/main/java/github/ponyhuang/agentframework/
-│   ├── agents/          # Agent core interfaces and classes
-│   ├── clients/         # Chat client interfaces
-│   ├── providers/      # LLM provider implementations
-│   ├── tools/          # Tool system for function calling
-│   ├── middleware/     # Middleware for request/response processing
-│   ├── sessions/       # Session management for conversation state
-│   ├── workflows/      # Workflow engine for complex task orchestration
-│   ├── mcp/            # Model Context Protocol support
-│   ├── orchestrations/ # Multi-agent patterns
-│   ├── types/          # Data types and models
-│   └── observability/  # OpenTelemetry tracing support
-├── samples/            # Example code demonstrating usage
-└── trae-agent-java/    # Complete Trae Agent implementation demo
+├── core/                   # Core framework module
+│   └── src/main/java/github/ponyhuang/agentframework/
+│       ├── agents/          # Agent core interfaces and classes
+│       ├── clients/         # Chat client interfaces
+│       ├── providers/      # LLM provider implementations
+│       ├── tools/          # Tool system for function calling
+│       ├── middleware/     # Middleware for request/response processing
+│       ├── sessions/       # Session management for conversation state
+│       ├── workflows/      # Workflow engine for complex task orchestration
+│       ├── mcp/            # Model Context Protocol support
+│       ├── orchestrations/ # Multi-agent patterns
+│       ├── types/          # Data types and models
+│       └── observability/  # OpenTelemetry tracing support
+├── samples/                # Example code demonstrating usage
+└── trae-agent-java/        # Complete Trae Agent implementation demo
 ```
 
 ## Module Details
@@ -125,6 +126,22 @@ agent-framework-java/
 - `TracingMiddleware.java` - Tracing middleware for monitoring
 
 ## Submodules
+
+### core/
+
+The core framework module containing all main source code:
+
+- `agents/` - Agent interfaces and base implementations
+- `clients/` - Chat client interfaces
+- `providers/` - LLM provider implementations (OpenAI, Anthropic)
+- `tools/` - Tool system for function calling
+- `middleware/` - Three-layer middleware system
+- `sessions/` - Session management for conversation state
+- `workflows/` - Graph-based workflow engine
+- `mcp/` - Model Context Protocol support
+- `orchestrations/` - Multi-agent orchestration patterns
+- `types/` - Core data types
+- `observability/` - OpenTelemetry tracing
 
 ### samples/
 

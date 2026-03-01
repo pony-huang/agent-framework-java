@@ -19,18 +19,19 @@ agent-framework-java 是 [Microsoft Agent Framework (Python)](https://github.com
 
 ```
 agent-framework-java/
-├── src/main/java/github/ponyhuang/agentframework/
-│   ├── agents/          # 代理核心接口和类
-│   ├── clients/         # 聊天客户端接口
-│   ├── providers/       # LLM 提供商实现
-│   ├── tools/           # 函数调用工具系统
-│   ├── middleware/      # 中间件用于请求/响应处理
-│   ├── sessions/       # 会话管理，用于对话状态
-│   ├── workflows/      # 工作流引擎，用于复杂任务编排
-│   ├── mcp/            # 模型上下文协议支持
-│   ├── orchestrations/ # 多代理模式
-│   ├── types/          # 数据类型和模型
-│   └── observability/  # OpenTelemetry 追踪支持
+├── core/                   # 核心框架模块
+│   └── src/main/java/github/ponyhuang/agentframework/
+│       ├── agents/          # 代理核心接口和类
+│       ├── clients/         # 聊天客户端接口
+│       ├── providers/       # LLM 提供商实现
+│       ├── tools/           # 函数调用工具系统
+│       ├── middleware/      # 中间件用于请求/响应处理
+│       ├── sessions/       # 会话管理，用于对话状态
+│       ├── workflows/      # 工作流引擎，用于复杂任务编排
+│       ├── mcp/            # 模型上下文协议支持
+│       ├── orchestrations/ # 多代理模式
+│       ├── types/          # 数据类型和模型
+│       └── observability/  # OpenTelemetry 追踪支持
 ├── samples/            # 演示用法的示例代码
 └── trae-agent-java/    # 完整的 Trae Agent 实现演示
 ```
@@ -125,6 +126,22 @@ agent-framework-java/
 - `TracingMiddleware.java` - 用于监控的追踪中间件
 
 ## 子模块
+
+### core/
+
+核心框架模块，包含所有主要源代码：
+
+- `agents/` - 代理接口和基础实现
+- `clients/` - 聊天客户端接口
+- `providers/` - LLM 提供商实现（OpenAI、Anthropic）
+- `tools/` - 函数调用工具系统
+- `middleware/` - 三层中间件系统
+- `sessions/` - 会话管理，用于对话状态
+- `workflows/` - 基于图形的工作流引擎
+- `mcp/` - 模型上下文协议支持
+- `orchestrations/` - 多代理编排模式
+- `types/` - 核心数据类型
+- `observability/` - OpenTelemetry 追踪
 
 ### samples/
 

@@ -6,14 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Java port of [Microsoft Agent Framework (Python)](https://github.com/microsoft/agent-framework/tree/main/python). It provides a framework for building AI agents that interact with LLMs (OpenAI, Anthropic).
 
+## Module Structure
+
+This project uses a multi-module Gradle structure:
+
+| Module | Description |
+|--------|-------------|
+| **core** | Main framework with all source code |
+| **samples** | Example code demonstrating usage |
+| **trae-agent-java** | Complete Trae Agent implementation demo |
+
 ## Build Commands
 
 ```bash
 ./gradlew build        # Compile and run all tests
 ./gradlew test         # Run JUnit 5 tests only
 ./gradlew clean        # Clean build outputs
-./gradlew classes     # Compile main classes only
-./gradlew testClasses # Compile test classes only
+./gradlew :core:classes     # Compile core main classes only
+./gradlew :core:testClasses # Compile core test classes only
 ```
 
 Run a single test:
@@ -36,10 +46,10 @@ Run a single test:
 | **MCP** | Model Context Protocol support via `MCPTool`, `MCPStdioTool`, `MCPStreamableHTTPTool` |
 | **Orchestrations** | Multi-agent patterns: `SequentialAgentBuilder`, `ConcurrentAgentBuilder`, `HandoffAgentBuilder`, `GroupChatAgentBuilder`, `MagenticAgentBuilder` |
 
-### Package Structure
+### Package Structure (in core module)
 
 ```
-src/main/java/com/microsoft/agentframework/
+core/src/main/java/github/ponyhuang/agentframework/
 ├── agents/        # Agent, BaseAgent, AgentBuilder
 ├── clients/       # ChatClient, EmbeddingClient
 ├── providers/     # OpenAIChatClient, AnthropicChatClient
@@ -72,7 +82,7 @@ src/main/java/com/microsoft/agentframework/
 
 - Uses JUnit 5 (`@Test`, `@BeforeEach`, etc.)
 - Uses Mockito for mocking (`@Mock`, `when()`, `verify()`)
-- Test files in `src/test/java/`
+- Test files in `core/src/test/java/`
 
 ## Dependencies
 
