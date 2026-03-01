@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":"))
+    implementation(project(":core"))
     implementation("io.projectreactor:reactor-core:3.8.2")
     implementation("io.opentelemetry:opentelemetry-api:1.47.0")
     implementation("io.opentelemetry:opentelemetry-sdk:1.47.0")
