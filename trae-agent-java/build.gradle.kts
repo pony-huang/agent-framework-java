@@ -38,10 +38,6 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.1")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.1")
 
-    // CLI
-    implementation("info.picocli:picocli:4.7.6")
-    implementation("info.picocli:picocli-spring-boot-starter:4.7.6")
-
     // Testing
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")

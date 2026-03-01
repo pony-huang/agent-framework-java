@@ -186,22 +186,9 @@ public class FunctionTool {
     }
 
     /**
-     * Parameter information holder.
-     */
-    private static class ParameterInfo {
-        final String name;
-        final String type;
-        final String description;
-        final boolean required;
-        final String defaultValue;
-
-        ParameterInfo(String name, String type, String description, boolean required, String defaultValue) {
-            this.name = name;
-            this.type = type;
-            this.description = description;
-            this.required = required;
-            this.defaultValue = defaultValue;
-        }
+         * Parameter information holder.
+         */
+        private record ParameterInfo(String name, String type, String description, boolean required, String defaultValue) {
     }
 
     /**

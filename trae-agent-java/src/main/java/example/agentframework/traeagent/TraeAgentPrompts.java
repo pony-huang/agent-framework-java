@@ -47,22 +47,4 @@ public final class TraeAgentPrompts {
     private TraeAgentPrompts() {
         // Utility class
     }
-
-    /**
-     * Load system prompt from file if exists, otherwise return default.
-     */
-    public static String loadFromFile(String promptPath) {
-        if (promptPath == null || promptPath.isBlank()) {
-            return DEFAULT_SYSTEM_PROMPT;
-        }
-        try {
-            Path path = Paths.get(promptPath);
-            if (Files.exists(path)) {
-                return Files.readString(path).trim();
-            }
-        } catch (Exception e) {
-            // Fall back to default
-        }
-        return DEFAULT_SYSTEM_PROMPT;
-    }
 }

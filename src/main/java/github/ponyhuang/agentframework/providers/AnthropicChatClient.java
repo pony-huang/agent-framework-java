@@ -24,12 +24,10 @@ public class AnthropicChatClient extends DefaultChatClient {
     private static final Logger LOG = LoggerFactory.getLogger(AnthropicChatClient.class);
 
     private final com.anthropic.client.AnthropicClient client;
-    private final String version;
 
     private AnthropicChatClient(Builder builder) {
         super(builder.model);
         this.client = builder.anthropicClient;
-        this.version = builder.version;
     }
 
     @Override
@@ -448,7 +446,6 @@ public class AnthropicChatClient extends DefaultChatClient {
         private String apiKey;
         private String baseUrl;
         private String model;
-        private String version = "2023-06-01";
 
         public Builder apiKey(String apiKey) {
             this.apiKey = apiKey;
@@ -462,11 +459,6 @@ public class AnthropicChatClient extends DefaultChatClient {
 
         public Builder model(String model) {
             this.model = model;
-            return this;
-        }
-
-        public Builder version(String version) {
-            this.version = version;
             return this;
         }
 

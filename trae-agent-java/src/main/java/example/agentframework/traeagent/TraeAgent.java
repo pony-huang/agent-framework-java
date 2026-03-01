@@ -175,7 +175,6 @@ public class TraeAgent extends BaseAgent {
     /**
      * Handle task_done tool call.
      */
-    @SuppressWarnings("unchecked")
     private void handleTaskDone(Map<String, Object> args, Object result) {
         if (args != null) {
             Object done = args.get("done");
@@ -192,8 +191,7 @@ public class TraeAgent extends BaseAgent {
             }
         }
         // Also check string result
-        if (result instanceof String) {
-            String resultStr = (String) result;
+        if (result instanceof String resultStr) {
             if (resultStr.toLowerCase().contains("\"done\": true") ||
                     resultStr.toLowerCase().contains("\"done\":true")) {
                 taskCompleted = true;

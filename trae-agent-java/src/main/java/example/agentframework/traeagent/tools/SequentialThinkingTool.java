@@ -2,6 +2,7 @@ package example.agentframework.traeagent.tools;
 
 import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.tools.Param;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,24 +30,7 @@ public class SequentialThinkingTool {
         Deque<ThinkingStep> history = thinkingHistory.get();
 
         // Determine the thought type
-        ThinkingStep.ThoughtType type;
-        if (nextStep != null) {
-            switch (nextStep.toLowerCase()) {
-                case "validate":
-                    type = ThinkingStep.ThoughtType.VALIDATE;
-                    break;
-                case "conclude":
-                    type = ThinkingStep.ThoughtType.CONCLUDE;
-                    break;
-                default:
-                    type = ThinkingStep.ThoughtType.THINK;
-            }
-        } else {
-            type = ThinkingStep.ThoughtType.THINK;
-        }
-
-        // Create and store the thought
-        ThinkingStep step = new ThinkingStep(thought, type, goal);
+        ThinkingStep step = getThinkingStep(thought, nextStep, goal);
         history.addLast(step);
 
         // Build response
@@ -85,6 +69,23 @@ public class SequentialThinkingTool {
         }
 
         return response.toString();
+    }
+
+    @NotNull
+    private static ThinkingStep getThinkingStep(String thought, String nextStep, String goal) {
+        ThinkingStep.ThoughtType type;
+        if (nextStep != null) {
+            type = switch (nextStep.toLowerCase()) {
+                case "validate" -> ThinkingStep.ThoughtType.VALIDATE;
+                case "conclude" -> ThinkingStep.ThoughtType.CONCLUDE;
+                default -> ThinkingStep.ThoughtType.THINK;
+            };
+        } else {
+            type = ThinkingStep.ThoughtType.THINK;
+        }
+
+        // Create and store the thought
+        return new ThinkingStep(thought, type, goal);
     }
 
     /**
@@ -195,23 +196,14 @@ public class SequentialThinkingTool {
     }
 
     /**
-     * Represents a single thinking step.
-     */
-    private static class ThinkingStep {
-        enum ThoughtType {
-            THINK,
-            VALIDATE,
-            CONCLUDE
-        }
+         * Represents a single thinking step.
+         */
+        private record ThinkingStep(String thought, SequentialThinkingTool.ThinkingStep.ThoughtType type, String goal) {
+            enum ThoughtType {
+                THINK,
+                VALIDATE,
+                CONCLUDE
+            }
 
-        final String thought;
-        final ThoughtType type;
-        final String goal;
-
-        ThinkingStep(String thought, ThoughtType type, String goal) {
-            this.thought = thought;
-            this.type = type;
-            this.goal = goal;
-        }
     }
 }

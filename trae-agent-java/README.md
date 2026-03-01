@@ -13,7 +13,6 @@ Java implementation of Trae Agent - an LLM-based software engineering agent.
   - Task completion detection
 - YAML configuration
 - Trajectory recording
-- CLI interface
 
 ## Quick Start
 
@@ -56,5 +55,4 @@ See [AGENTS.md](../AGENTS.md) in the parent directory for architecture details.
 
 - agent-framework-java: Core agent framework
 - SnakeYAML: YAML configuration parsing
-- Picocli: CLI framework
 - OpenTelemetry: Observability
