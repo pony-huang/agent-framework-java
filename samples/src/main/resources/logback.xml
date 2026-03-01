@@ -6,7 +6,7 @@
         </encoder>
     </appender>
 
-    <logger name="com.microsoft.agentframework" level="INFO"/>
+    <logger name="github.ponyhuang.agentframework" level="INFO"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

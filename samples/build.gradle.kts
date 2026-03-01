@@ -4,8 +4,8 @@ plugins {
     id("java")
 }
 
-group = "org.agent.framework"
-version = "1.0-SNAPSHOT"
+group = "github.ponyhuang.agentframework.samples"
+version = "1.0.0"
 
 repositories {
     mavenCentral()

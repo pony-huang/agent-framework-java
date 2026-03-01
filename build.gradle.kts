@@ -4,15 +4,15 @@ plugins {
     id("java")
 }
 
-group = "org.agent.framework"
-version = "1.0-SNAPSHOT"
+group = "github.ponyhuang.agentframework"
+version = "1.0.0-beta"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation("ch.qos.logback:logback-classic:1.5.18")
+    implementation("ch.qos.logback:logback-classic:1.5.32")
     implementation("com.anthropic:anthropic-java:2.13.0")
     implementation("com.openai:openai-java:4.22.0")
     implementation("io.projectreactor:reactor-core:3.8.2")
