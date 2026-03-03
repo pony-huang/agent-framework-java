@@ -1,7 +1,17 @@
 plugins {
     id("java-library")
-    id("org.springframework.boot") version "3.2.0"
-    id("io.spring.dependency-management") version "1.1.4"
+    id("application")
+}
+
+application {
+    mainClass.set("github.ponyhuang.agentframework.agui.example.AguiVertxServer")
+}
+
+sourceSets {
+    main {
+        java.srcDir("backend/src/main/java")
+        resources.srcDir("frontend")
+    }
 }
 
 group = "github.ponyhuang.agentframework"
@@ -12,19 +22,15 @@ repositories {
 }
 
 dependencies {
-    // Project dependencies
     implementation(project(":core"))
     implementation(project(":agui-core"))
+    implementation(project(":agui"))
     implementation("io.projectreactor:reactor-core:3.8.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.21.1")
     implementation("ch.qos.logback:logback-classic:1.5.32")
 
-    // Spring Boot (optional - for Spring integration)
-    compileOnly("org.springframework.boot:spring-boot-starter-webflux:3.2.0")
-    compileOnly("org.springframework:spring-web:6.1.1")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor:3.2.0")
 
-    // Vert.x (for Vert.x integration)
     implementation("io.vertx:vertx-web:4.5.4")
     implementation("io.vertx:vertx-web-client:4.5.4")
     implementation("io.vertx:vertx-core:4.5.4")
@@ -46,4 +52,15 @@ tasks.test {
 
 tasks.withType<JavaCompile> {
     options.compilerArgs.add("-parameters")
+}
+
+tasks.register("printClasspath") {
+    doLast {
+        println(sourceSets["main"].runtimeClasspath.asPath)
+    }
+}
+
+tasks.register<JavaExec>("runServer") {
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("github.ponyhuang.agentframework.agui.example.AguiVertxServer")
 }
