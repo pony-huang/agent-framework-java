@@ -210,6 +210,15 @@ public class A2AAgent extends BaseAgent {
                     .role(historyItem.getRole() == github.ponyhuang.agentframework.a2a.types.Role.AGENT ? Role.ASSISTANT : Role.USER)
                     .contents(contents)
                     .build());
+        } else if (task.getMessages() != null && !task.getMessages().isEmpty()) {
+            // Handle messages field (A2A protocol newer versions)
+            for (github.ponyhuang.agentframework.a2a.types.Message a2aMessage : task.getMessages()) {
+                List<Content> contents = parseContentsFromA2A(a2aMessage.getParts());
+                messages.add(Message.builder()
+                        .role(a2aMessage.getRole() == github.ponyhuang.agentframework.a2a.types.Role.AGENT ? Role.ASSISTANT : Role.USER)
+                        .contents(contents)
+                        .build());
+            }
         }
 
         return messages;

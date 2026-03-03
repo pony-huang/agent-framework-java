@@ -1,18 +1,26 @@
 package github.ponyhuang.agentframework.a2a.types;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Map;
 
 public class TextPart implements Part {
+    @JsonProperty("text")
     private final String text;
+    @JsonProperty("metadata")
     private final Map<String, Object> metadata;
+
+    @JsonCreator
+    public TextPart(
+            @JsonProperty("text") String text,
+            @JsonProperty("metadata") Map<String, Object> metadata) {
+        this.text = text;
+        this.metadata = metadata;
+    }
 
     public TextPart(String text) {
         this(text, null);
-    }
-
-    public TextPart(String text, Map<String, Object> metadata) {
-        this.text = text;
-        this.metadata = metadata;
     }
 
     @Override

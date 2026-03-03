@@ -106,12 +106,15 @@ public class A2AServer {
         String responseText = generateResponse(userText);
 
         // Build the response following A2A protocol
+        // Use Jackson polymorphic type format (kind wrapper)
+        Map<String, Object> textPart = new HashMap<>();
+        textPart.put("kind", "text");
+        textPart.put("text", responseText);
+        textPart.put("metadata", null);
+
         Map<String, Object> responseMessage = Map.of(
-                "role", "agent",
-                "content", List.of(Map.of(
-                        "type", "text",
-                        "text", responseText
-                ))
+                "role", "AGENT",
+                "parts", List.of(textPart)
         );
 
         Map<String, Object> task = new HashMap<>();
