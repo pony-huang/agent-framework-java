@@ -1,20 +1,30 @@
 package github.ponyhuang.agentframework.a2a.types;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 
 public class TaskStatus {
+    @JsonProperty("state")
     private final TaskState state;
+    @JsonProperty("message")
     private final Message message;
+    @JsonProperty("artifacts")
     private final List<Artifact> artifacts;
 
-    public TaskStatus(TaskState state) {
-        this(state, null, null);
-    }
-
-    public TaskStatus(TaskState state, Message message, List<Artifact> artifacts) {
+    @JsonCreator
+    public TaskStatus(
+            @JsonProperty("state") TaskState state,
+            @JsonProperty("message") Message message,
+            @JsonProperty("artifacts") List<Artifact> artifacts) {
         this.state = state;
         this.message = message;
         this.artifacts = artifacts;
+    }
+
+    public TaskStatus(TaskState state) {
+        this(state, null, null);
     }
 
     public TaskState getState() {

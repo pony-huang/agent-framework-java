@@ -2,6 +2,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 
 plugins {
     id("java")
+    id("application")
 }
 
 group = "github.ponyhuang.agentframework.samples"
@@ -13,6 +14,7 @@ repositories {
 
 dependencies {
     implementation(project(":core"))
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.0")
     implementation("io.projectreactor:reactor-core:3.8.2")
     implementation("io.opentelemetry:opentelemetry-api:1.47.0")
     implementation("io.opentelemetry:opentelemetry-sdk:1.47.0")
@@ -27,4 +29,8 @@ tasks.test {
 
 tasks.withType<JavaCompile> {
     options.compilerArgs.add("-parameters")
+}
+
+application {
+    mainClass.set("github.ponyhuang.agentframework.samples.A2AExample")
 }

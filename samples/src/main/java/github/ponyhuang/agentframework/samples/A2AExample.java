@@ -24,18 +24,35 @@ import github.ponyhuang.agentframework.types.Message;
  */
 public class A2AExample {
 
+    private static A2AServer server;
+
     public static void main(String[] args) {
-        // Example 1: Create agent from URL
-        example1CreateAgentFromUrl();
+        // Start local A2A server first
+        try {
+            server = new A2AServer(8000);
+            server.start();
+            // Wait for server to be ready
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            System.err.println("Failed to start A2A server: " + e.getMessage());
+            System.exit(1);
+        }
 
-        // Example 2: Create agent from AgentCard
-        example2CreateAgentFromAgentCard();
+        try {
+            // Example 1: Create agent from URL
+            example1CreateAgentFromUrl();
 
-        // Example 3: Using continuation token for long-running tasks
-        example3ContinuationToken();
+            // Example 2: Create agent from AgentCard (using local server)
+            example2CreateAgentFromAgentCard();
 
-        // Example 4: Streaming response
-        example4StreamingResponse();
+            // Example 3: Using continuation token for long-running tasks
+            example3ContinuationToken();
+
+            // Example 4: Streaming response
+            example4StreamingResponse();
+        } finally {
+            server.stop();
+        }
     }
 
     /**
@@ -80,11 +97,11 @@ public class A2AExample {
     static void example2CreateAgentFromAgentCard() {
         System.out.println("=== Example 2: Create Agent from AgentCard ===");
 
-        // Option 1: Create AgentCard manually
+        // Option 1: Create AgentCard manually (pointing to local server)
         AgentCard manualCard = AgentCard.builder()
                 .name("My Custom Agent")
                 .description("A custom A2A agent")
-                .url("http://localhost:9000")
+                .url("http://localhost:8000")
                 .version("1.0")
                 .capabilities(AgentCapabilities.builder()
                         .streaming(true)

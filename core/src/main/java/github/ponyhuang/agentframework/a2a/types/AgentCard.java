@@ -1,25 +1,39 @@
 package github.ponyhuang.agentframework.a2a.types;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.Map;
 
 public class AgentCard {
+    @JsonProperty("name")
     private final String name;
+    @JsonProperty("description")
     private final String description;
+    @JsonProperty("url")
     private final String url;
+    @JsonProperty("version")
     private final String version;
+    @JsonProperty("capabilities")
     private final AgentCapabilities capabilities;
+    @JsonProperty("supportedProtocolVersions")
     private final List<String> supportedProtocolVersions;
+    @JsonProperty("skills")
     private final Map<String, Object> skills;
+    @JsonProperty("additionalProperties")
     private final Map<String, Object> additionalProperties;
 
-    public AgentCard(String name, String url) {
-        this(name, null, url, null, null, null, null, null);
-    }
-
-    public AgentCard(String name, String description, String url, String version,
-                    AgentCapabilities capabilities, List<String> supportedProtocolVersions,
-                    Map<String, Object> skills, Map<String, Object> additionalProperties) {
+    @JsonCreator
+    public AgentCard(
+            @JsonProperty("name") String name,
+            @JsonProperty("description") String description,
+            @JsonProperty("url") String url,
+            @JsonProperty("version") String version,
+            @JsonProperty("capabilities") AgentCapabilities capabilities,
+            @JsonProperty("supportedProtocolVersions") List<String> supportedProtocolVersions,
+            @JsonProperty("skills") Map<String, Object> skills,
+            @JsonProperty("additionalProperties") Map<String, Object> additionalProperties) {
         this.name = name;
         this.description = description;
         this.url = url;
@@ -28,6 +42,10 @@ public class AgentCard {
         this.supportedProtocolVersions = supportedProtocolVersions;
         this.skills = skills;
         this.additionalProperties = additionalProperties;
+    }
+
+    public AgentCard(String name, String url) {
+        this(name, null, url, null, null, null, null, null);
     }
 
     public String getName() {

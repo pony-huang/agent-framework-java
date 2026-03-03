@@ -1,26 +1,39 @@
 package github.ponyhuang.agentframework.a2a.types;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.Map;
 
 public class AgentCapabilities {
+    @JsonProperty("streaming")
     private final Boolean streaming;
+    @JsonProperty("pushNotifications")
     private final Boolean pushNotifications;
+    @JsonProperty("stateTransitionHistory")
     private final Boolean stateTransitionHistory;
+    @JsonProperty("supportedMethods")
     private final List<String> supportedMethods;
+    @JsonProperty("additionalProperties")
     private final Map<String, Object> additionalProperties;
 
-    public AgentCapabilities() {
-        this(null, null, null, null, null);
-    }
-
-    public AgentCapabilities(Boolean streaming, Boolean pushNotifications, Boolean stateTransitionHistory,
-                           List<String> supportedMethods, Map<String, Object> additionalProperties) {
+    @JsonCreator
+    public AgentCapabilities(
+            @JsonProperty("streaming") Boolean streaming,
+            @JsonProperty("pushNotifications") Boolean pushNotifications,
+            @JsonProperty("stateTransitionHistory") Boolean stateTransitionHistory,
+            @JsonProperty("supportedMethods") List<String> supportedMethods,
+            @JsonProperty("additionalProperties") Map<String, Object> additionalProperties) {
         this.streaming = streaming;
         this.pushNotifications = pushNotifications;
         this.stateTransitionHistory = stateTransitionHistory;
         this.supportedMethods = supportedMethods;
         this.additionalProperties = additionalProperties;
+    }
+
+    public AgentCapabilities() {
+        this(null, null, null, null, null);
     }
 
     public Boolean getStreaming() {

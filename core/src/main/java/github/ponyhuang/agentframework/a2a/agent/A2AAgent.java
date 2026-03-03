@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 
 public class A2AAgent extends BaseAgent {
     private static final Logger LOG = LoggerFactory.getLogger(A2AAgent.class);
-    private static final Pattern URI_PATTERN = Pattern.compile("data:(?<media_type>[^;]+);base64,(?<base64_data>[A-Za-z0-9+/=]+)");
+    private static final Pattern URI_PATTERN = Pattern.compile("data:([^;]+);base64,([A-Za-z0-9+/=]+)");
 
     private static final Set<TaskState> TERMINAL_STATES = Set.of(
             TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELED, TaskState.REJECTED);

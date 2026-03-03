@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import github.ponyhuang.agentframework.a2a.A2AException;
+import github.ponyhuang.agentframework.a2a.client.A2AEvent;
 import github.ponyhuang.agentframework.a2a.types.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -150,10 +151,28 @@ public class A2AClientImpl implements A2AClient {
             return;
         }
 
-        JsonNode result = (JsonNode) rpcResponse.getResult();
-        A2AEvent event = parseEvent(result);
-        if (event != null) {
-            sink.next(event);
+        Object result = rpcResponse.getResult();
+        if (result == null) {
+            return;
+        }
+
+        // Handle both JsonNode and LinkedHashMap (from Jackson deserialization)
+        if (result instanceof JsonNode) {
+            A2AEvent event = parseEvent((JsonNode) result);
+            if (event != null) {
+                sink.next(event);
+            }
+        } else if (result instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultMap = (Map<String, Object>) result;
+            if (resultMap.containsKey("task")) {
+                Task task = objectMapper.convertValue(resultMap.get("task"), Task.class);
+                sink.next(task);
+            } else if (resultMap.containsKey("message")) {
+                github.ponyhuang.agentframework.a2a.types.Message message =
+                        objectMapper.convertValue(resultMap.get("message"), github.ponyhuang.agentframework.a2a.types.Message.class);
+                sink.next(message);
+            }
         }
     }
 
