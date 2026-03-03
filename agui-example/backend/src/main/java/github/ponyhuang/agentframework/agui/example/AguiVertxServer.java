@@ -4,7 +4,9 @@ import com.agui.core.agent.Agent;
 import com.agui.core.agent.AgentSubscriber;
 import com.agui.core.agent.RunAgentParameters;
 import com.agui.core.event.*;
+import com.agui.core.message.BaseMessage;
 import com.agui.core.message.UserMessage;
+import com.agui.core.message.AssistantMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import github.ponyhuang.agentframework.agui.agent.AguiAgent;
 import github.ponyhuang.agentframework.clients.ChatClient;
@@ -13,17 +15,17 @@ import github.ponyhuang.agentframework.tools.FunctionTool;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerOptions;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AguiVertxServer extends AbstractVerticle {
 
@@ -31,7 +33,9 @@ public class AguiVertxServer extends AbstractVerticle {
 
     private final Agent agent;
     private final ObjectMapper objectMapper;
-    private final Map<String, JsonObject> sessions = new ConcurrentHashMap<>();
+
+    // Session storage: sessionId -> List of messages
+    private final Map<String, List<BaseMessage>> sessions = new ConcurrentHashMap<>();
 
     public AguiVertxServer(Agent agent) {
         this.agent = agent;
@@ -147,9 +151,10 @@ public class AguiVertxServer extends AbstractVerticle {
 
         Router router = Router.router(vertx);
 
+        router.route().handler(BodyHandler.create());
+
         router.get("/health").handler(this::handleHealth);
         router.post("/agent/run").handler(this::handleRunAgent);
-        router.get("/agent/events/:runId").handler(this::handleEventStream);
 
         router.get("/").handler(rc -> {
             rc.response().putHeader("Location", "/index.html").setStatusCode(302).end();
@@ -188,93 +193,143 @@ public class AguiVertxServer extends AbstractVerticle {
     private void handleRunAgent(RoutingContext ctx) {
         try {
             JsonObject body = ctx.body().asJsonObject();
+            if (body == null) {
+                ctx.response()
+                        .setStatusCode(400)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonObject()
+                                .put("error", "Request body is required")
+                                .encode());
+                return;
+            }
+
             String message = body.getString("message", "");
+            String sessionId = body.getString("sessionId", "default");
             String runId = body.getString("runId", UUID.randomUUID().toString());
 
-            sessions.put(runId, new JsonObject().put("status", "running"));
+            // Get or create session
+            List<BaseMessage> history = sessions.computeIfAbsent(sessionId, k -> new ArrayList<>());
 
-            UserMessage userMessage = new UserMessage();
-            userMessage.setContent(message);
+            // Build messages list with history + current message
+            List<BaseMessage> allBaseMessages = new ArrayList<>(history);
+
+            UserMessage userBaseMessage = new UserMessage();
+            userBaseMessage.setContent(message);
+            allBaseMessages.add(userBaseMessage);
+
+            // Set up streaming response headers
+            ctx.response()
+                    .putHeader("Content-Type", "text/event-stream")
+                    .putHeader("Cache-Control", "no-cache")
+                    .putHeader("Connection", "keep-alive")
+                    .setChunked(true);
+
+            // Store final assistant response
+            StringBuilder assistantContent = new StringBuilder();
 
             RunAgentParameters params = RunAgentParameters.builder()
                     .runId(runId)
-                    .messages(List.of(userMessage))
+                    .messages(allBaseMessages)
                     .build();
 
-            AgentSubscriber subscriber = createJsonSubscriber(runId, body);
+            // Create subscriber that writes directly to the response
+            AtomicBoolean responseEnded = new AtomicBoolean(false);
+            AgentSubscriber subscriber = createStreamSubscriber(
+                    ctx.response(), runId, responseEnded, sessionId, userBaseMessage, assistantContent, history);
 
             agent.runAgent(params, subscriber);
 
-            ctx.response()
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject()
-                            .put("runId", runId)
-                            .put("status", "started")
-                            .encode());
+            // After agent finishes, store the conversation in history
+            // We need to wait for the agent to complete, but we can't block here
+            // So we'll track the assistant's response in the subscriber and save after completion
+            // For simplicity, let's create a simple approach - save after response ends
 
         } catch (Exception e) {
             LOG.error("Error handling run agent", e);
-            ctx.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject()
-                            .put("error", e.getMessage())
-                            .encode());
+            if (!ctx.response().ended()) {
+                ctx.response()
+                        .setStatusCode(500)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonObject()
+                                .put("error", e.getMessage())
+                                .encode());
+            }
         }
     }
 
-    private void handleEventStream(RoutingContext ctx) {
-        String runId = ctx.pathParam("runId");
-        ctx.response()
-                .putHeader("Content-Type", "text/event-stream")
-                .putHeader("Cache-Control", "no-cache")
-                .putHeader("Connection", "keep-alive")
-                .setChunked(true);
+    private AgentSubscriber createStreamSubscriber(
+            io.vertx.core.http.HttpServerResponse response,
+            String runId,
+            AtomicBoolean responseEnded,
+            String sessionId,
+            BaseMessage userBaseMessage,
+            StringBuilder assistantContent,
+            List<BaseMessage> history) {
 
-        JsonObject session = sessions.get(runId);
-        if (session != null) {
-            ctx.response().end();
-        } else {
-            ctx.response().end();
-        }
-    }
-
-    private AgentSubscriber createJsonSubscriber(String runId, JsonObject request) {
         return new AgentSubscriber() {
+            private void sendSSE(String eventType, Object data) {
+                if (responseEnded.get() || response.ended()) {
+                    return;
+                }
+                try {
+                    String json = objectMapper.writeValueAsString(data);
+                    response.write("event: " + eventType + "\n");
+                    response.write("data: " + json + "\n\n");
+                } catch (Exception e) {
+                    LOG.error("Error sending event", e);
+                }
+            }
+
             @Override
             public void onEvent(BaseEvent event) {
-                try {
-                    String json = objectMapper.writeValueAsString(event);
-                    LOG.debug("Event: {}", json);
-                } catch (Exception e) {
-                    LOG.error("Error serializing event", e);
-                }
+                sendSSE("message", event);
             }
 
             @Override
             public void onTextMessageContentEvent(TextMessageContentEvent event) {
                 LOG.info("[{}] Text: {}", runId, event.getDelta());
+                assistantContent.append(event.getDelta());
+                sendSSE("text", event);
             }
 
             @Override
             public void onToolCallStartEvent(ToolCallStartEvent event) {
                 LOG.info("[{}] Tool call start: {}", runId, event.getToolCallName());
+                sendSSE("toolCall", event);
             }
 
             @Override
             public void onToolCallResultEvent(ToolCallResultEvent event) {
                 LOG.info("[{}] Tool result: {}", runId, event.getContent());
+                sendSSE("toolResult", event);
             }
 
             @Override
             public void onRunFinishedEvent(RunFinishedEvent event) {
                 LOG.info("[{}] Run finished", runId);
-                sessions.remove(runId);
+
+                // Save conversation to session history
+                if (sessionId != null && history != null) {
+                    history.add(userBaseMessage);
+                    AssistantMessage assistantBaseMessage = new AssistantMessage();
+                    assistantBaseMessage.setContent(assistantContent.toString());
+                    history.add(assistantBaseMessage);
+                    LOG.info("[{}] Saved {} messages to session {}", runId, history.size(), sessionId);
+                }
+
+                sendSSE("finished", event);
+                if (!responseEnded.getAndSet(true) && !response.ended()) {
+                    response.end();
+                }
             }
 
             @Override
             public void onRunErrorEvent(RunErrorEvent event) {
                 LOG.error("[{}] Run error: {}", runId, event.getError());
+                sendSSE("error", event);
+                if (!responseEnded.getAndSet(true) && !response.ended()) {
+                    response.end();
+                }
             }
         };
     }

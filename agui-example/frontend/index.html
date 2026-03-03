@@ -282,6 +282,13 @@
 
         let isProcessing = false;
 
+        // Generate or retrieve session ID for conversation memory
+        let sessionId = localStorage.getItem('agui-session-id');
+        if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            localStorage.setItem('agui-session-id', sessionId);
+        }
+
         messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -316,7 +323,7 @@
             const assistantMessage = addMessage('assistant', '');
             const contentElement = assistantMessage.querySelector('.content');
             contentElement.classList.add('thinking');
-            contentElement.textContent = 'Thinking';
+            contentElement.textContent = 'Thinking...';
 
             try {
                 const response = await fetch('/agent/run', {
@@ -325,18 +332,66 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        message: message
+                        message: message,
+                        sessionId: sessionId
                     })
                 });
 
-                const data = await response.json();
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
 
-                if (data.error) {
-                    contentElement.classList.remove('thinking');
-                    contentElement.textContent = `Error: ${data.error}`;
-                } else {
-                    contentElement.classList.remove('thinking');
-                    contentElement.textContent = message + ' - Request started with runId: ' + data.runId;
+                if (!response.body) {
+                    throw new Error('No response body');
+                }
+
+                // Use fetch with ReadableStream to handle SSE
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6).trim();
+                            if (!data) continue;
+
+                            try {
+                                const event = JSON.parse(data);
+                                handleServerEvent(event, contentElement, assistantMessage);
+                            } catch (e) {
+                                // Try to parse as plain text
+                                if (data) {
+                                    fullText += data;
+                                    contentElement.classList.remove('thinking');
+                                    contentElement.textContent = fullText;
+                                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Process remaining buffer
+                if (buffer.startsWith('data: ')) {
+                    const data = buffer.slice(6).trim();
+                    if (data) {
+                        try {
+                            const event = JSON.parse(data);
+                            handleServerEvent(event, contentElement, assistantMessage);
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
                 }
 
             } catch (error) {
@@ -347,6 +402,67 @@
             isProcessing = false;
             sendButton.disabled = false;
             messageInput.focus();
+        }
+
+        function handleServerEvent(event, contentElement, assistantMessage) {
+            const eventType = event.event || event.type;
+
+            switch (eventType) {
+                case 'text':
+                case 'textMessageContent':
+                    // Handle text delta
+                    const delta = event.delta || event.text || '';
+                    if (delta) {
+                        contentElement.classList.remove('thinking');
+                        contentElement.textContent = delta;
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                    break;
+
+                case 'toolCall':
+                case 'toolCallStart':
+                    // Handle tool call start
+                    const toolName = event.toolCallName || event.toolName || 'tool';
+                    const toolCallDiv = document.createElement('div');
+                    toolCallDiv.className = 'tool-call';
+                    toolCallDiv.textContent = `Calling tool: ${toolName}`;
+                    assistantMessage.appendChild(toolCallDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    break;
+
+                case 'toolResult':
+                case 'toolCallResult':
+                    // Handle tool result
+                    const resultContent = event.content || event.output || JSON.stringify(event.result || '');
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'tool-result';
+                    resultDiv.textContent = `Result: ${resultContent}`;
+                    assistantMessage.appendChild(resultDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    break;
+
+                case 'finished':
+                case 'runFinished':
+                    contentElement.classList.remove('thinking');
+                    break;
+
+                case 'error':
+                case 'runError':
+                    contentElement.classList.remove('thinking');
+                    const errorMsg = event.error || 'Unknown error';
+                    contentElement.textContent = `Error: ${errorMsg}`;
+                    break;
+
+                default:
+                    // Try to extract text from any event
+                    if (event.delta) {
+                        contentElement.classList.remove('thinking');
+                        contentElement.textContent = event.delta;
+                    } else if (event.content) {
+                        contentElement.classList.remove('thinking');
+                        contentElement.textContent = event.content;
+                    }
+            }
         }
 
         function addMessage(role, content) {
