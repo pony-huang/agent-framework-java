@@ -45,3 +45,13 @@ bin/
 openspec/
 .claude/
 .codex/
+/ai/
+/.idea/gradle.xml
+/.gradle-user-home/wrapper/dists/gradle-8.10-bin/deqhafrv1ntovfmgh0nh3npr9/gradle-8.10-bin.zip.lck
+/.gradle-user-home/wrapper/dists/gradle-8.10-bin/deqhafrv1ntovfmgh0nh3npr9/gradle-8.10-bin.zip.part
+/.idea/kotlinc.xml
+/.idea/misc.xml
+/nul
+/.idea/inspectionProfiles/Project_Default.xml
+/trajectory/trajectory.json
+/.idea/vcs.xml
