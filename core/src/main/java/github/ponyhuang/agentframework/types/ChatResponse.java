@@ -1,5 +1,8 @@
 package github.ponyhuang.agentframework.types;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.List;
 import java.util.Map;
 
@@ -199,5 +202,14 @@ public class ChatResponse {
         public ChatResponse build() {
             return new ChatResponse(this);
         }
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return new ObjectMapper().writeValueAsString(this);
+        } catch (JsonProcessingException ignored) {
+        }
+        return super.toString();
     }
 }

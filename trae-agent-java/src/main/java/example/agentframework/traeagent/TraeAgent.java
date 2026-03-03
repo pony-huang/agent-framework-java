@@ -1,5 +1,7 @@
 package example.agentframework.traeagent;
 
+import com.agui.core.agent.AgentSubscriber;
+import com.agui.core.event.*;
 import github.ponyhuang.agentframework.agents.BaseAgent;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * TraeAgent - An LLM-based software engineering agent.
@@ -26,6 +29,7 @@ public class TraeAgent extends BaseAgent {
     private final ToolExecutor toolExecutor;
     private final TrajectoryRecorder trajectoryRecorder;
     private final String systemPrompt;
+    private final List<AgentSubscriber> subscribers = new CopyOnWriteArrayList<>();
 
     private boolean taskCompleted = false;
     private String patchContent = "";
@@ -45,6 +49,13 @@ public class TraeAgent extends BaseAgent {
 
     @Override
     protected ChatResponse doRun(List<Message> messages, Map<String, Object> options) {
+        // Publish RUN_STARTED event
+        publishEvent(() -> {
+            RunStartedEvent event = new RunStartedEvent();
+            event.setRawEvent(Map.of("task", messages.isEmpty() ? "" : messages.get(0).getText()));
+            return event;
+        });
+
         List<Message> conversationMessages = new ArrayList<>(messages);
         int maxSteps = config.getMaxSteps();
         int currentStep = 0;
@@ -52,6 +63,14 @@ public class TraeAgent extends BaseAgent {
         while (currentStep < maxSteps) {
             currentStep++;
             LOG.info("Step {}/{}", currentStep, maxSteps);
+
+            // Publish STEP_STARTED event
+            final int step = currentStep;
+            publishEvent(() -> {
+                StepStartedEvent event = new StepStartedEvent();
+                event.setStepName("step-" + step);
+                return event;
+            });
 
             // Build chat request
             ChatCompleteParams params = ChatCompleteParams.builder()
@@ -76,12 +95,47 @@ public class TraeAgent extends BaseAgent {
             Message assistantMessage = response.getMessage();
             conversationMessages.add(assistantMessage);
 
+            // Publish TEXT_MESSAGE_START event
+            final String messageId = UUID.randomUUID().toString();
+            publishEvent(() -> {
+                TextMessageStartEvent event = new TextMessageStartEvent();
+                event.setMessageId(messageId);
+                event.setRole("assistant");
+                return event;
+            });
+
+            // Publish TEXT_MESSAGE_CONTENT event
+            String textContent = assistantMessage.getText();
+            if (textContent != null && !textContent.isEmpty()) {
+                publishEvent(() -> {
+                    TextMessageContentEvent event = new TextMessageContentEvent();
+                    event.setMessageId(messageId);
+                    event.setDelta(textContent);
+                    return event;
+                });
+            }
+
+            // Publish TEXT_MESSAGE_END event
+            publishEvent(() -> {
+                TextMessageEndEvent event = new TextMessageEndEvent();
+                event.setMessageId(messageId);
+                return event;
+            });
+
             // Check if we have a function call
             if (!response.hasFunctionCall()) {
                 // No function call, return the response
                 if (trajectoryRecorder != null) {
                     trajectoryRecorder.finish();
                 }
+
+                // Publish STEP_FINISHED event
+                publishEvent(() -> {
+                    StepFinishedEvent event = new StepFinishedEvent();
+                    event.setStepName("step-" + step);
+                    return event;
+                });
+
                 return response;
             }
 
@@ -98,6 +152,15 @@ public class TraeAgent extends BaseAgent {
 
             LOG.info("Executing tool: {}", functionName);
 
+            // Publish TOOL_CALL_START event
+            publishEvent(() -> {
+                ToolCallStartEvent event = new ToolCallStartEvent();
+                event.setToolCallId(toolCallId);
+                event.setToolCallName(functionName);
+                event.setParentMessageId(messageId);
+                return event;
+            });
+
             // Record tool call
             if (trajectoryRecorder != null) {
                 trajectoryRecorder.recordToolCall(functionName, functionArgs);
@@ -111,6 +174,17 @@ public class TraeAgent extends BaseAgent {
                 LOG.error("Tool execution failed: {}", e.getMessage());
                 toolResult = "Error: " + e.getMessage();
             }
+
+            final String resultStr = toolResult != null ? toolResult.toString() : "null";
+
+            // Publish TOOL_CALL_RESULT event
+            publishEvent(() -> {
+                ToolCallResultEvent event = new ToolCallResultEvent();
+                event.setToolCallId(toolCallId);
+                event.setContent(resultStr);
+                event.setMessageId(messageId);
+                return event;
+            });
 
             // Record tool result
             if (trajectoryRecorder != null) {
@@ -134,7 +208,6 @@ public class TraeAgent extends BaseAgent {
             }
 
             // Add tool result message
-            String resultStr = toolResult != null ? toolResult.toString() : "null";
             Message toolMessage = Message.tool(toolCallId, functionName, resultStr);
             conversationMessages.add(toolMessage);
 
@@ -229,6 +302,68 @@ public class TraeAgent extends BaseAgent {
     public void reset() {
         taskCompleted = false;
         patchContent = "";
+    }
+
+    /**
+     * Add a subscriber to receive agent events.
+     *
+     * @param subscriber the subscriber to add
+     */
+    public void addSubscriber(AgentSubscriber subscriber) {
+        if (subscriber != null) {
+            subscribers.add(subscriber);
+        }
+    }
+
+    /**
+     * Remove a subscriber from receiving agent events.
+     *
+     * @param subscriber the subscriber to remove
+     */
+    public void removeSubscriber(AgentSubscriber subscriber) {
+        subscribers.remove(subscriber);
+    }
+
+    /**
+     * Publish an event to all subscribers.
+     *
+     * @param eventFactory a factory that creates the event
+     */
+    private void publishEvent(java.util.function.Supplier<BaseEvent> eventFactory) {
+        if (subscribers.isEmpty()) {
+            return;
+        }
+        BaseEvent event = eventFactory.get();
+        if (event != null) {
+            for (AgentSubscriber subscriber : subscribers) {
+                try {
+                    subscriber.onEvent(event);
+                    // Also call specific event handler based on type
+                    switch (event.getType()) {
+                        case RUN_STARTED -> subscriber.onRunStartedEvent((RunStartedEvent) event);
+                        case RUN_FINISHED -> subscriber.onRunFinishedEvent((RunFinishedEvent) event);
+                        case RUN_ERROR -> subscriber.onRunErrorEvent((RunErrorEvent) event);
+                        case STEP_STARTED -> subscriber.onStepStartedEvent((StepStartedEvent) event);
+                        case STEP_FINISHED -> subscriber.onStepFinishedEvent((StepFinishedEvent) event);
+                        case TEXT_MESSAGE_START -> subscriber.onTextMessageStartEvent((TextMessageStartEvent) event);
+                        case TEXT_MESSAGE_CONTENT -> subscriber.onTextMessageContentEvent((TextMessageContentEvent) event);
+                        case TEXT_MESSAGE_END -> subscriber.onTextMessageEndEvent((TextMessageEndEvent) event);
+                        case TOOL_CALL_START -> subscriber.onToolCallStartEvent((ToolCallStartEvent) event);
+                        case TOOL_CALL_END -> subscriber.onToolCallEndEvent((ToolCallEndEvent) event);
+                        case TOOL_CALL_ARGS -> subscriber.onToolCallArgsEvent((ToolCallArgsEvent) event);
+                        case TOOL_CALL_RESULT -> subscriber.onToolCallResultEvent((ToolCallResultEvent) event);
+                        case STATE_SNAPSHOT -> subscriber.onStateSnapshotEvent((StateSnapshotEvent) event);
+                        case STATE_DELTA -> subscriber.onStateDeltaEvent((StateDeltaEvent) event);
+                        case MESSAGES_SNAPSHOT -> subscriber.onMessagesSnapshotEvent((MessagesSnapshotEvent) event);
+                        case RAW -> subscriber.onRawEvent((RawEvent) event);
+                        case CUSTOM -> subscriber.onCustomEvent((CustomEvent) event);
+                        default -> { }
+                    }
+                } catch (Exception e) {
+                    LOG.error("Error notifying subscriber: {}", e.getMessage(), e);
+                }
+            }
+        }
     }
 
     /**

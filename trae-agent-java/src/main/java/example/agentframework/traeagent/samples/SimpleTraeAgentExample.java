@@ -1,5 +1,7 @@
 package example.agentframework.traeagent.samples;
 
+import com.agui.core.agent.AgentSubscriber;
+import com.agui.core.event.*;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.providers.OpenAIChatClient;
 import github.ponyhuang.agentframework.types.ChatResponse;
@@ -7,6 +9,9 @@ import example.agentframework.traeagent.TraeAgent;
 import example.agentframework.traeagent.config.TraeAgentConfig;
 import example.agentframework.traeagent.tools.TraeToolRegistry;
 import example.agentframework.traeagent.trajectory.TrajectoryRecorder;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Simple example showing how to use TraeAgent.
@@ -14,11 +19,16 @@ import example.agentframework.traeagent.trajectory.TrajectoryRecorder;
  * This example demonstrates:
  * - Creating a TraeAgent with configuration
  * - Setting up tools
+ * - Subscribing to AG-UI events
  * - Executing a simple task
  */
 public class SimpleTraeAgentExample {
 
-    public static void main(String[] args) {
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final Logger LOG = LoggerFactory.getLogger(SimpleTraeAgentExample.class);
+
+    public static void main(String[] args) throws Exception {
         // Create configuration
         TraeAgentConfig config = new TraeAgentConfig();
         config.setProvider("openai");
@@ -51,6 +61,35 @@ public class SimpleTraeAgentExample {
                 .trajectoryRecorder(trajectoryRecorder)
                 .build();
 
+        // Add AG-UI event subscriber to print events
+        AgentSubscriber eventLogger = new AgentSubscriber() {
+            @Override
+            public void onEvent(BaseEvent event) {
+                try {
+                    LOG.info("[AG-UI EVENT] {}: {}", event.getType().getName(), toJson(event));
+                } catch (Exception e) {
+                    LOG.error("Error serializing event: {}", e.getMessage());
+                }
+            }
+
+            @Override
+            public void onTextMessageContentEvent(TextMessageContentEvent event) {
+                LOG.info("[TEXT_MESSAGE_CONTENT] messageId={}, delta=\"{}\"", event.getMessageId(), truncate(event.getDelta(), 100));
+            }
+
+            @Override
+            public void onToolCallStartEvent(ToolCallStartEvent event) {
+                LOG.info("[TOOL_CALL_START] toolCallId={}, toolName={}", event.getToolCallId(), event.getToolCallName());
+            }
+
+            @Override
+            public void onToolCallResultEvent(ToolCallResultEvent event) {
+                LOG.info("[TOOL_CALL_RESULT] toolCallId={}, result=\"{}\"", event.getToolCallId(), truncate(event.getContent(), 200));
+            }
+        };
+
+        agent.addSubscriber(eventLogger);
+
         // Execute a simple task
         String task = "Create a simple HelloWorld.java file in the current directory that prints 'Hello, World!'";
 
@@ -73,5 +112,15 @@ public class SimpleTraeAgentExample {
         } else {
             System.out.println("Task may not be complete");
         }
+    }
+
+    private static String toJson(Object obj) throws Exception {
+        return objectMapper.writeValueAsString(obj);
+    }
+
+    private static String truncate(String str, int maxLen) {
+        if (str == null) return "";
+        if (str.length() <= maxLen) return str;
+        return str.substring(0, maxLen) + "...";
     }
 }
