@@ -13,7 +13,7 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":agui-core"))
     implementation("com.anthropic:anthropic-java:2.15.0")
-    implementation("com.openai:openai-java:4.22.0")
+    implementation("com.openai:openai-java:4.23.0")
     implementation("io.projectreactor:reactor-core:3.8.2")
     implementation("io.opentelemetry:opentelemetry-api:1.47.0")
     implementation("io.opentelemetry:opentelemetry-sdk:1.47.0")

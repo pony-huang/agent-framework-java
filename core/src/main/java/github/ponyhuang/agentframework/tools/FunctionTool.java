@@ -19,6 +19,7 @@ public class FunctionTool {
     private final boolean requiresApproval;
     private final ToolInvoker invoker;
     private final Map<String, Object> schemaOverride;
+    private final Map<String, Object> parametersOverride;
 
     private FunctionTool(Builder builder) {
         this.name = builder.name;
@@ -29,6 +30,7 @@ public class FunctionTool {
         this.requiresApproval = builder.requiresApproval;
         this.invoker = builder.invoker;
         this.schemaOverride = builder.schemaOverride;
+        this.parametersOverride = builder.parametersOverride;
     }
 
     public String getName() {
@@ -40,13 +42,8 @@ public class FunctionTool {
     }
 
     public Map<String, Object> getParameters() {
-        if (schemaOverride != null) {
-            Object params = schemaOverride.get("parameters");
-            if (params instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> casted = (Map<String, Object>) params;
-                return casted;
-            }
+        if (parametersOverride != null) {
+            return parametersOverride;
         }
         Map<String, Object> params = new HashMap<>();
         params.put("type", "object");
@@ -73,7 +70,20 @@ public class FunctionTool {
 
     public Map<String, Object> toSchema() {
         if (schemaOverride != null) {
-            return schemaOverride;
+            // Check if it's a full schema (with name and description)
+            if (schemaOverride.containsKey("name") && schemaOverride.containsKey("description") && schemaOverride.containsKey("parameters")) {
+                return schemaOverride;
+            }
+            // Check if it's a full schema with nested parameters
+            if (schemaOverride.containsKey("name") && schemaOverride.containsKey("description")) {
+                return schemaOverride;
+            }
+            // It's a partial schema (just parameters) - need to wrap properly
+            Map<String, Object> wrapped = new HashMap<>();
+            wrapped.put("name", name);
+            wrapped.put("description", description);
+            wrapped.put("parameters", schemaOverride);
+            return wrapped;
         }
         Map<String, Object> schema = new HashMap<>();
         schema.put("name", name);
@@ -203,6 +213,7 @@ public class FunctionTool {
         private boolean requiresApproval;
         private ToolInvoker invoker;
         private Map<String, Object> schemaOverride;
+        private Map<String, Object> parametersOverride;
 
         public Builder name(String name) {
             this.name = name;
@@ -246,6 +257,15 @@ public class FunctionTool {
          */
         public Builder schema(Map<String, Object> schemaOverride) {
             this.schemaOverride = schemaOverride;
+            return this;
+        }
+
+        /**
+         * Overrides only the parameters part of the schema.
+         * Use this when you want to customize parameters without providing a full schema.
+         */
+        public Builder parameters(Map<String, Object> parametersOverride) {
+            this.parametersOverride = parametersOverride;
             return this;
         }
 

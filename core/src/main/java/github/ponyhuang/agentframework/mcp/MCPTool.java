@@ -364,9 +364,7 @@ public abstract class MCPTool {
         }
         Map<String, Object> schema = new HashMap<>();
         schema.put("name", normalized);
-        if (tool.description() != null) {
-            schema.put("description", tool.description());
-        }
+        schema.put("description", tool.description());
         schema.put("parameters", toJsonSchemaMap(tool.inputSchema()));
 
         FunctionTool functionTool = FunctionTool.builder()

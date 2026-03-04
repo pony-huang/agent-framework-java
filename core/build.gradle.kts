@@ -13,8 +13,9 @@ repositories {
 
 dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.32")
-    implementation("com.anthropic:anthropic-java:2.13.0")
-    implementation("com.openai:openai-java:4.22.0")
+    implementation("com.anthropic:anthropic-java:2.15.0")
+    implementation("com.openai:openai-java:4.23.0")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21") // Required for openai-java (Kotlin library)
     implementation("io.projectreactor:reactor-core:3.8.2")
     implementation("io.opentelemetry:opentelemetry-api:1.47.0")
     implementation("io.opentelemetry:opentelemetry-sdk:1.47.0")
@@ -29,8 +30,4 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-}
-
-tasks.withType<JavaCompile> {
-    options.compilerArgs.add("-parameters")
 }

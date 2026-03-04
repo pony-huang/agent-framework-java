@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **IMPORTANT**: This project is for **learning purposes only**. Do not use in production environments.
+
 ## Project Overview
 
 This is a Java port of [Microsoft Agent Framework (Python)](https://github.com/microsoft/agent-framework/tree/main/python). It provides a framework for building AI agents that interact with LLMs (OpenAI, Anthropic).
@@ -15,6 +17,9 @@ This project uses a multi-module Gradle structure:
 | **core** | Main framework with all source code |
 | **samples** | Example code demonstrating usage |
 | **trae-agent-java** | Complete Trae Agent implementation demo |
+| **agui** | AGUI (Agent Graphical User Interface) integration with agent-framework |
+| **agui-core** | Core AGUI components - event system, message types, agent interfaces |
+| **agui-example** | Vert.x-based web server example with frontend |
 
 ## Build Commands
 
@@ -91,3 +96,16 @@ core/src/main/java/github/ponyhuang/agentframework/
 - **Observability**: opentelemetry-api 1.47.0, opentelemetry-sdk 1.47.0
 - **MCP**: io.modelcontextprotocol.sdk:mcp 1.0.0
 - **Logging**: logback-classic 1.5.18
+
+## Development Notes
+
+This project was developed using **Vibe Coding** and **Spec-Driven** approaches:
+- **Vibe Coding**: Implemented based on intuitive understanding and rapid prototyping without strict test-driven development
+- **Spec-Driven**: Uses OpenSpec for artifact management and implementation tracking
+
+Due to this development approach, the codebase may have:
+- Untested edge cases
+- Incomplete error handling
+- Potential memory leaks
+- Race conditions in concurrent code
+- Inconsistent code patterns
