@@ -1,7 +1,7 @@
 package example.agentframework.traeagent.tools;
 
 import github.ponyhuang.agentframework.tools.Tool;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +31,7 @@ public class EditTool {
     @Tool(description = "View the contents of a file or directory. " +
             "For files, shows the full content. For directories, lists files. " +
             "Use path relative to working directory.")
-    public String view(@Param(description = "Path to file or directory to view") String path) {
+    public String view(@ToolParam(description = "Path to file or directory to view") String path) {
         try {
             Path filePath = resolvePath(path);
 
@@ -67,9 +67,9 @@ public class EditTool {
      */
     @Tool(description = "View specific lines from a file. Provide start and end line numbers.")
     public String viewRange(
-            @Param(description = "Path to file") String path,
-            @Param(description = "Start line number") int startLine,
-            @Param(description = "End line number") int endLine) {
+            @ToolParam(description = "Path to file") String path,
+            @ToolParam(description = "Start line number") int startLine,
+            @ToolParam(description = "End line number") int endLine) {
         try {
             Path filePath = resolvePath(path);
 
@@ -104,8 +104,8 @@ public class EditTool {
      */
     @Tool(description = "Create a new file with the given content.")
     public String create(
-            @Param(description = "Path to the new file to create") String path,
-            @Param(description = "Content to write to the file") String content) {
+            @ToolParam(description = "Path to the new file to create") String path,
+            @ToolParam(description = "Content to write to the file") String content) {
         try {
             Path filePath = resolvePath(path);
 
@@ -135,9 +135,9 @@ public class EditTool {
     @Tool(description = "Replace a specific string in a file with new content. " +
             "Use OLD_STRING to specify what to replace and NEW_STRING for the replacement.")
     public String strReplace(
-            @Param(description = "Path to the file") String path,
-            @Param(description = "The exact string to find and replace") String oldString,
-            @Param(description = "The new string to replace it with") String newString) {
+            @ToolParam(description = "Path to the file") String path,
+            @ToolParam(description = "The exact string to find and replace") String oldString,
+            @ToolParam(description = "The new string to replace it with") String newString) {
         try {
             Path filePath = resolvePath(path);
 
@@ -168,9 +168,9 @@ public class EditTool {
      */
     @Tool(description = "Insert new content at a specific line number in a file.")
     public String insert(
-            @Param(description = "Path to the file") String path,
-            @Param(description = "Line number to insert after") int afterLine,
-            @Param(description = "Content to insert") String content) {
+            @ToolParam(description = "Path to the file") String path,
+            @ToolParam(description = "Line number to insert after") int afterLine,
+            @ToolParam(description = "Content to insert") String content) {
         try {
             Path filePath = resolvePath(path);
 
@@ -208,9 +208,9 @@ public class EditTool {
      */
     @Tool(description = "Search for a string in files within a directory. Returns matching lines with file paths.")
     public String grep(
-            @Param(description = "Pattern to search for") String pattern,
-            @Param(description = "Directory to search in (default: working directory)", required = false) String dir,
-            @Param(description = "File pattern to match (e.g., *.java)", required = false) String filePattern) {
+            @ToolParam(description = "Pattern to search for") String pattern,
+            @ToolParam(description = "Directory to search in (default: working directory)", required = false) String dir,
+            @ToolParam(description = "File pattern to match (e.g., *.java)", required = false) String filePattern) {
         try {
             Path searchDir = dir != null ? resolvePath(dir) : Paths.get(workingDirectory);
 

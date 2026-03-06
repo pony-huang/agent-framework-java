@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.LoopAgent;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.Message;
@@ -56,9 +56,9 @@ public class LoopAgentExample {
 
         @Tool(name = "calculate", description = "Perform basic arithmetic calculations")
         public String calculate(
-                @Param(description = "The operation: add, subtract, multiply, or divide") String operation,
-                @Param(description = "First number") double a,
-                @Param(description = "Second number") double b
+                @ToolParam(description = "The operation: add, subtract, multiply, or divide") String operation,
+                @ToolParam(description = "First number") double a,
+                @ToolParam(description = "Second number") double b
         ) {
             double result;
             switch (operation.toLowerCase()) {
@@ -84,7 +84,7 @@ public class LoopAgentExample {
 
         @Tool(name = "task_done", description = "Mark the task as completed")
         public String taskDone(
-                @Param(description = "Whether the task is done", required = false) Boolean done
+                @ToolParam(description = "Whether the task is done", required = false) Boolean done
         ) {
             return "{\"done\": " + (done != null && done) + "}";
         }

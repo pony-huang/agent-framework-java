@@ -1,7 +1,7 @@
 package example.agentframework.traeagent.tools;
 
 import github.ponyhuang.agentframework.tools.Tool;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,14 +28,14 @@ public class BashTool {
 
     @Tool(description = "Execute a shell command. Use this to run programs, git commands, etc. " +
             "Returns the command output or error.")
-    public String bash(@Param(description = "The shell command to execute") String command) {
+    public String bash(@ToolParam(description = "The shell command to execute") String command) {
         return executeCommand(command);
     }
 
     @Tool(description = "Execute a shell command with timeout. Use this for longer running commands.")
     public String bashWithTimeout(
-            @Param(description = "The shell command to execute") String command,
-            @Param(description = "Timeout in seconds (default: 60)", required = false) Integer timeoutSeconds) {
+            @ToolParam(description = "The shell command to execute") String command,
+            @ToolParam(description = "Timeout in seconds (default: 60)", required = false) Integer timeoutSeconds) {
         int timeout = timeoutSeconds != null ? timeoutSeconds : 60;
         return executeCommand(command, timeout);
     }
@@ -102,8 +102,8 @@ public class BashTool {
      */
     @Tool(description = "Execute a shell command and get detailed result including exit code.")
     public Map<String, Object> bashDetailed(
-            @Param(description = "The shell command to execute") String command,
-            @Param(description = "Timeout in seconds (default: 60)", required = false) Integer timeoutSeconds) {
+            @ToolParam(description = "The shell command to execute") String command,
+            @ToolParam(description = "Timeout in seconds (default: 60)", required = false) Integer timeoutSeconds) {
         int timeout = timeoutSeconds != null ? timeoutSeconds : 60;
 
         LOG.info("Executing command with details: {}", command);

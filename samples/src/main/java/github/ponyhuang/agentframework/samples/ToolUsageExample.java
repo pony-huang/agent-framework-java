@@ -3,7 +3,7 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatResponse;
@@ -63,7 +63,7 @@ public class ToolUsageExample {
                 description = "Get the current weather for a city"
         )
         public String getWeather(
-                @Param(description = "The city name") String city
+                @ToolParam(description = "The city name") String city
         ) {
             // In real implementation, call a weather API
             return "The weather in " + city + " is sunny, 22°C";

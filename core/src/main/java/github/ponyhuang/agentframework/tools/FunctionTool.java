@@ -278,11 +278,11 @@ public class FunctionTool {
                 boolean required = true;
                 String defaultValue = "";
 
-                Param paramAnnotation = param.getAnnotation(Param.class);
-                if (paramAnnotation != null) {
-                    description = paramAnnotation.description();
-                    required = paramAnnotation.required();
-                    defaultValue = paramAnnotation.defaultValue();
+                ToolParam toolParamAnnotation = param.getAnnotation(ToolParam.class);
+                if (toolParamAnnotation != null) {
+                    description = toolParamAnnotation.description();
+                    required = toolParamAnnotation.required();
+                    defaultValue = toolParamAnnotation.defaultValue();
                 }
 
                 parameterInfos.put(paramName,

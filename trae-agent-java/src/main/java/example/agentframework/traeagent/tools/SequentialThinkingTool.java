@@ -1,7 +1,7 @@
 package example.agentframework.traeagent.tools;
 
 import github.ponyhuang.agentframework.tools.Tool;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,9 +23,9 @@ public class SequentialThinkingTool {
             "Use this when you need to reason about complex problems, plan multiple steps, or analyze options. " +
             "Can be used multiple times to build up a thinking process.")
     public String think(
-            @Param(description = "Your current thinking or thought") String thought,
-            @Param(description = "The next step to take (think, validate, or conclude)", required = false) String nextStep,
-            @Param(description = "What you want to achieve with this thought", required = false) String goal) {
+            @ToolParam(description = "Your current thinking or thought") String thought,
+            @ToolParam(description = "The next step to take (think, validate, or conclude)", required = false) String nextStep,
+            @ToolParam(description = "What you want to achieve with this thought", required = false) String goal) {
 
         Deque<ThinkingStep> history = thinkingHistory.get();
 
@@ -92,7 +92,7 @@ public class SequentialThinkingTool {
      * Start a new thinking session, clearing previous thoughts.
      */
     @Tool(description = "Clear all previous thinking and start fresh. Use when switching to a new problem.")
-    public String thinkNew(@Param(description = "Initial thought for the new problem") String thought) {
+    public String thinkNew(@ToolParam(description = "Initial thought for the new problem") String thought) {
         Deque<ThinkingStep> history = thinkingHistory.get();
         history.clear();
 
@@ -131,8 +131,8 @@ public class SequentialThinkingTool {
      */
     @Tool(description = "Explore alternatives or ask questions during thinking.")
     public String thinkExplore(
-            @Param(description = "The question or alternative to explore") String question,
-            @Param(description = "Options to consider (comma-separated)", required = false) String options) {
+            @ToolParam(description = "The question or alternative to explore") String question,
+            @ToolParam(description = "Options to consider (comma-separated)", required = false) String options) {
 
         Deque<ThinkingStep> history = thinkingHistory.get();
 

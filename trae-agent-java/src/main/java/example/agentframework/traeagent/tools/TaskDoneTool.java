@@ -1,7 +1,7 @@
 package example.agentframework.traeagent.tools;
 
 import github.ponyhuang.agentframework.tools.Tool;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,10 +26,10 @@ public class TaskDoneTool {
             "Set done=true when the task is complete, false if there are remaining issues. " +
             "Use must_patch=true if the task requires code changes.")
     public Map<String, Object> taskDone(
-            @Param(description = "Whether the task is complete", required = false) Boolean done,
-            @Param(description = "Summary of what was accomplished", required = false) String summary,
-            @Param(description = "Whether a patch is required for this task", required = false) Boolean mustPatch,
-            @Param(description = "Remaining issues if not done", required = false) String remaining) {
+            @ToolParam(description = "Whether the task is complete", required = false) Boolean done,
+            @ToolParam(description = "Summary of what was accomplished", required = false) String summary,
+            @ToolParam(description = "Whether a patch is required for this task", required = false) Boolean mustPatch,
+            @ToolParam(description = "Remaining issues if not done", required = false) String remaining) {
 
         Map<String, Object> result = new HashMap<>();
 
@@ -62,7 +62,7 @@ public class TaskDoneTool {
      */
     @Tool(description = "Quick way to mark task as done or not done.")
     public Map<String, Object> done(
-            @Param(description = "Whether the task is complete") boolean isDone) {
+            @ToolParam(description = "Whether the task is complete") boolean isDone) {
 
         Map<String, Object> result = new HashMap<>();
         result.put("done", isDone);
@@ -75,7 +75,7 @@ public class TaskDoneTool {
      */
     @Tool(description = "Request confirmation from the user before finalizing task completion.")
     public Map<String, Object> requestConfirmation(
-            @Param(description = "Question or item to confirm") String question) {
+            @ToolParam(description = "Question or item to confirm") String question) {
 
         Map<String, Object> result = new HashMap<>();
         result.put("type", "confirmation_requested");
@@ -90,9 +90,9 @@ public class TaskDoneTool {
      */
     @Tool(description = "Report progress on the current task. Use for multi-step tasks.")
     public Map<String, Object> progress(
-            @Param(description = "Current progress description") String progress,
-            @Param(description = "Total steps or items", required = false) Integer total,
-            @Param(description = "Current step or item", required = false) Integer current) {
+            @ToolParam(description = "Current progress description") String progress,
+            @ToolParam(description = "Total steps or items", required = false) Integer total,
+            @ToolParam(description = "Current step or item", required = false) Integer current) {
 
         Map<String, Object> result = new HashMap<>();
         result.put("type", "progress");

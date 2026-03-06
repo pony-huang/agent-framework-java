@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import github.ponyhuang.agentframework.tools.Param;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,8 +35,8 @@ public class JSONEditTool {
     @Tool(description = "Get a value from a JSON file using a path. " +
             "Path uses dot notation (e.g., 'data.settings.theme').")
     public String jsonGet(
-            @Param(description = "Path to the JSON file") String path,
-            @Param(description = "JSONPath-like path to the value (e.g., 'data.settings.theme')") String jsonPath) {
+            @ToolParam(description = "Path to the JSON file") String path,
+            @ToolParam(description = "JSONPath-like path to the value (e.g., 'data.settings.theme')") String jsonPath) {
         try {
             Path filePath = resolvePath(path);
             JsonNode root = objectMapper.readTree(Files.readString(filePath));
@@ -60,9 +60,9 @@ public class JSONEditTool {
      */
     @Tool(description = "Set a value in a JSON file. Creates nested objects if they don't exist.")
     public String jsonSet(
-            @Param(description = "Path to the JSON file") String path,
-            @Param(description = "JSONPath-like path to set (e.g., 'data.settings.theme')") String jsonPath,
-            @Param(description = "Value to set (JSON string)") String value) {
+            @ToolParam(description = "Path to the JSON file") String path,
+            @ToolParam(description = "JSONPath-like path to set (e.g., 'data.settings.theme')") String jsonPath,
+            @ToolParam(description = "Value to set (JSON string)") String value) {
         try {
             Path filePath = resolvePath(path);
 
@@ -111,8 +111,8 @@ public class JSONEditTool {
      */
     @Tool(description = "Delete a key from a JSON file.")
     public String jsonDelete(
-            @Param(description = "Path to the JSON file") String path,
-            @Param(description = "JSONPath-like path to delete") String jsonPath) {
+            @ToolParam(description = "Path to the JSON file") String path,
+            @ToolParam(description = "JSONPath-like path to delete") String jsonPath) {
         try {
             Path filePath = resolvePath(path);
 
@@ -153,9 +153,9 @@ public class JSONEditTool {
      */
     @Tool(description = "Add an item to an array in a JSON file.")
     public String jsonAppend(
-            @Param(description = "Path to the JSON file") String path,
-            @Param(description = "JSONPath-like path to the array") String jsonPath,
-            @Param(description = "Item to add (JSON string)") String item) {
+            @ToolParam(description = "Path to the JSON file") String path,
+            @ToolParam(description = "JSONPath-like path to the array") String jsonPath,
+            @ToolParam(description = "Item to add (JSON string)") String item) {
         try {
             Path filePath = resolvePath(path);
 
@@ -190,7 +190,7 @@ public class JSONEditTool {
      * View the entire JSON file.
      */
     @Tool(description = "View a JSON file with pretty formatting.")
-    public String jsonView(@Param(description = "Path to the JSON file") String path) {
+    public String jsonView(@ToolParam(description = "Path to the JSON file") String path) {
         try {
             Path filePath = resolvePath(path);
 
@@ -211,7 +211,7 @@ public class JSONEditTool {
      * Validate JSON file syntax.
      */
     @Tool(description = "Validate JSON file syntax.")
-    public String jsonValidate(@Param(description = "Path to the JSON file") String path) {
+    public String jsonValidate(@ToolParam(description = "Path to the JSON file") String path) {
         try {
             Path filePath = resolvePath(path);
 
