@@ -4,12 +4,10 @@ import github.ponyhuang.agentframework.agents.LoopAgent;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.tools.Param;
 import github.ponyhuang.agentframework.tools.Tool;
-import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.Message;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Example showing how to use LoopAgent for multi-turn ReAct execution.
@@ -17,19 +15,18 @@ import java.util.Map;
 public class LoopAgentExample {
 
     public static void main(String[] args) {
-        // Create tool instance and executor
+        // Create tool instance
         CalculatorTool calculator = new CalculatorTool();
-        ToolExecutor executor = new ToolExecutor().registerAnnotated(calculator);
 
         // Create chat client
         ChatClient client = ClientExample.openAIChatClient();
 
-        // Build LoopAgent with custom termination handler
+        // Build LoopAgent with custom termination handler using simplified API
         LoopAgent agent = LoopAgent.builder()
                 .name("calculator-assistant")
                 .instructions("You are a helpful assistant that uses the calculator tool for math operations.")
                 .client(client)
-                .toolExecutor(executor)
+                .tool(calculator)
                 .maxSteps(5)
                 .terminationHandler((fnName, fnArgs, result) -> "task_done".equals(fnName))
                 .build();

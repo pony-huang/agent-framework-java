@@ -9,6 +9,7 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.Message;
 import github.ponyhuang.agentframework.tools.FunctionTool;
+import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;
 
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ public class AgentBuilder {
     private List<ContextProvider> contextProviders = new ArrayList<>();
     private List<AgentMiddleware> middlewares = new ArrayList<>();
     private Map<String, Object> defaultOptions = new HashMap<>();
+    private ToolExecutor toolExecutor = new ToolExecutor();
 
     public static AgentBuilder builder() {
         return new AgentBuilder();
@@ -132,6 +134,52 @@ public class AgentBuilder {
             }
         }
         return this;
+    }
+
+    /**
+     * Adds a tool to the agent by registering an instance with @Tool annotated methods.
+     * This is a simplified alternative to using ToolExecutor directly.
+     *
+     * @param toolInstance the object containing @Tool annotated methods
+     * @return this builder
+     */
+    public AgentBuilder tool(Object toolInstance) {
+        if (toolInstance != null) {
+            toolExecutor.registerAnnotated(toolInstance);
+            // Add tool schema to the tools list
+            for (Map<String, Object> schema : toolExecutor.getToolSchemas()) {
+                // Avoid duplicates
+                if (!tools.contains(schema)) {
+                    this.tools.add(schema);
+                }
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Adds multiple tools to the agent by registering instances with @Tool annotated methods.
+     *
+     * @param toolInstances the objects containing @Tool annotated methods
+     * @return this builder
+     */
+    public AgentBuilder tools(Object... toolInstances) {
+        if (toolInstances != null) {
+            for (Object toolInstance : toolInstances) {
+                tool(toolInstance);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Gets the internal ToolExecutor for manual tool execution.
+     * This is useful when you need to manually handle tool execution loops.
+     *
+     * @return the ToolExecutor instance
+     */
+    public ToolExecutor getToolExecutor() {
+        return toolExecutor;
     }
 
     /**

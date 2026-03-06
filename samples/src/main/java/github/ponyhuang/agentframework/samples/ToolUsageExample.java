@@ -25,30 +25,30 @@ public class ToolUsageExample {
         // Create a tool instance
         WeatherTool weatherTool = new WeatherTool();
 
-        // Register the tool with ToolExecutor
-        ToolExecutor executor =
-                new ToolExecutor();
-        executor.registerAnnotated(weatherTool);
-
-        // Get tool schema
-        Map<String, Object> toolSchema = executor.getToolSchemas().get(0);
-        System.out.println("Tool Schema: " + toolSchema);
-
         // Create a chat client
         ChatClient client = ClientExample.anthropicChatClient();
 
-        // Build an agent with tools
-        Agent agent = AgentBuilder.builder()
+        // Build an agent with tools using simplified API
+        // Note: ToolExecutor is created internally, use getToolExecutor() if needed for manual execution
+        AgentBuilder agentBuilder = AgentBuilder.builder()
                 .name("assistant")
                 .instructions("You are a helpful assistant. For weather questions, you must call the get_weather tool.")
                 .client(client)
-                .tool(executor.getToolSchemas().get(0))
-                .build();
+                .tool(weatherTool);
+
+        // Get tool schema for demonstration
+        Map<String, Object> toolSchema = agentBuilder.getToolExecutor().getToolSchemas().get(0);
+        System.out.println("Tool Schema: " + toolSchema);
+
+        // Build the agent
+        Agent agent = agentBuilder.build();
 
         // Run the agent with a question that needs a tool
         List<Message> messages = new ArrayList<>();
         messages.add(Message.user("What's the weather like in Tokyo?"));
 
+        // Use the internal tool executor for manual tool loop
+        ToolExecutor executor = agentBuilder.getToolExecutor();
         ChatResponse response = runWithTools(agent, executor, messages, 3);
         System.out.println("Response: " + response.getMessage().getText());
     }

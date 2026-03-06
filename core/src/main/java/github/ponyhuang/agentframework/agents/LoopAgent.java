@@ -172,6 +172,48 @@ public class LoopAgent extends BaseAgent {
             return this;
         }
 
+        /**
+         * Adds a tool to the agent by registering an instance with @Tool annotated methods.
+         * This is a simplified alternative to using ToolExecutor directly.
+         *
+         * @param toolInstance the object containing @Tool annotated methods
+         * @return this builder
+         */
+        public Builder tool(Object toolInstance) {
+            if (toolInstance != null) {
+                if (this.toolExecutor == null) {
+                    this.toolExecutor = new ToolExecutor();
+                }
+                this.toolExecutor.registerAnnotated(toolInstance);
+                // Add tool schema to the tools list
+                for (Map<String, Object> schema : this.toolExecutor.getToolSchemas()) {
+                    if (tools == null) {
+                        tools = new ArrayList<>();
+                    }
+                    // Avoid duplicates
+                    if (!tools.contains(schema)) {
+                        tools.add(schema);
+                    }
+                }
+            }
+            return this;
+        }
+
+        /**
+         * Adds multiple tools to the agent by registering instances with @Tool annotated methods.
+         *
+         * @param toolInstances the objects containing @Tool annotated methods
+         * @return this builder
+         */
+        public Builder tools(Object... toolInstances) {
+            if (toolInstances != null) {
+                for (Object toolInstance : toolInstances) {
+                    tool(toolInstance);
+                }
+            }
+            return this;
+        }
+
         public Builder maxSteps(int maxSteps) {
             this.maxSteps = maxSteps;
             return this;
