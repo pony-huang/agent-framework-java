@@ -16,7 +16,6 @@ public class FunctionTool {
     private final Method method;
     private final Object instance;
     private final Map<String, ParameterInfo> parameterInfos;
-    private final boolean requiresApproval;
     private final ToolInvoker invoker;
     private final Map<String, Object> schemaOverride;
     private final Map<String, Object> parametersOverride;
@@ -27,7 +26,6 @@ public class FunctionTool {
         this.method = builder.method;
         this.instance = builder.instance;
         this.parameterInfos = builder.parameterInfos;
-        this.requiresApproval = builder.requiresApproval;
         this.invoker = builder.invoker;
         this.schemaOverride = builder.schemaOverride;
         this.parametersOverride = builder.parametersOverride;
@@ -62,10 +60,6 @@ public class FunctionTool {
         } catch (Exception e) {
             throw new ToolExecutionException("Error invoking tool " + name, e);
         }
-    }
-
-    public boolean requiresApproval() {
-        return requiresApproval;
     }
 
     public Map<String, Object> toSchema() {
@@ -210,7 +204,6 @@ public class FunctionTool {
         private Method method;
         private Object instance;
         private Map<String, ParameterInfo> parameterInfos = new HashMap<>();
-        private boolean requiresApproval;
         private ToolInvoker invoker;
         private Map<String, Object> schemaOverride;
         private Map<String, Object> parametersOverride;
@@ -236,11 +229,6 @@ public class FunctionTool {
 
         public Builder instance(Object instance) {
             this.instance = instance;
-            return this;
-        }
-
-        public Builder requiresApproval(boolean requiresApproval) {
-            this.requiresApproval = requiresApproval;
             return this;
         }
 

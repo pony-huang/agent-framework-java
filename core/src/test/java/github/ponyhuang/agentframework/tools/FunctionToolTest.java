@@ -195,43 +195,6 @@ class FunctionToolTest {
     }
 
     /**
-     * Test FunctionTool.requiresApproval() default value.
-     * Verifies default requiresApproval is false.
-     */
-    @Test
-    void testRequiresApprovalDefault() throws NoSuchMethodException {
-        TestService service = new TestService();
-        Method method = TestService.class.getMethod("greet", String.class);
-
-        FunctionTool tool = FunctionTool.builder()
-                .method(method)
-                .instance(service)
-                .build();
-
-        // Verify default is false
-        assertFalse(tool.requiresApproval());
-    }
-
-    /**
-     * Test FunctionTool.requiresApproval() can be set.
-     * Verifies builder sets requiresApproval.
-     */
-    @Test
-    void testRequiresApprovalCanBeSet() throws NoSuchMethodException {
-        TestService service = new TestService();
-        Method method = TestService.class.getMethod("greet", String.class);
-
-        FunctionTool tool = FunctionTool.builder()
-                .method(method)
-                .instance(service)
-                .requiresApproval(true)
-                .build();
-
-        // Verify requiresApproval is true
-        assertTrue(tool.requiresApproval());
-    }
-
-    /**
      * Test FunctionTool.create() factory method.
      * Verifies convenience factory method.
      */

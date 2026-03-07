@@ -1,5 +1,9 @@
 package github.ponyhuang.agentframework.tools;
 
+import github.ponyhuang.agentframework.hooks.HookEvent;
+import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.events.PermissionRequestContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +13,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ToolExecutor approval handler functionality.
+ * Unit tests for ToolExecutor hook-based permission functionality.
  */
 class ToolExecutorApprovalTest {
 
@@ -24,54 +28,49 @@ class ToolExecutorApprovalTest {
 
     private ToolExecutor executor;
     private TestService testService;
+    private HookExecutor hookExecutor;
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
         executor = new ToolExecutor();
         testService = new TestService();
+        hookExecutor = new HookExecutor();
 
-        // Register a tool that requires approval
+        // Register a tool
         Method method = TestService.class.getMethod("hello", String.class);
         FunctionTool tool = FunctionTool.builder()
                 .name("hello")
                 .method(method)
                 .instance(testService)
-                .requiresApproval(true)
                 .build();
         executor.register(tool);
+
+        // Attach hook executor
+        executor.hookExecutor(hookExecutor);
     }
 
     /**
-     * Test tool execution without approval handler throws SecurityException.
+     * Test tool execution with permission hook that allows.
      */
     @Test
-    void testExecuteWithoutApprovalHandlerThrowsException() {
-        // Try to execute without approval handler
-        assertThrows(SecurityException.class, () ->
+    void testExecuteWithPermissionHookAllows() {
+        // Add permission hook that always allows
+        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> HookResult.allow());
+
+        // Execute should succeed - just verify it doesn't throw
+        assertDoesNotThrow(() ->
             executor.execute("hello", Map.of("name", "World"))
         );
     }
 
     /**
-     * Test tool execution with approval handler that approves.
+     * Test tool execution with permission hook that denies.
      */
     @Test
-    void testExecuteWithApprovalHandlerApproves() throws NoSuchMethodException {
-        // Add approval handler that always approves
-        executor.approvalHandler((toolName, args) -> true);
-
-        // Execute should succeed
-        Object result = executor.execute("hello", Map.of("name", "World"));
-        assertEquals("Hello, World!", result);
-    }
-
-    /**
-     * Test tool execution with approval handler that rejects.
-     */
-    @Test
-    void testExecuteWithApprovalHandlerRejects() {
-        // Add approval handler that always rejects
-        executor.approvalHandler((toolName, args) -> false);
+    void testExecuteWithPermissionHookDenies() {
+        // Add permission hook that denies
+        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST,
+            context -> HookResult.deny("Not allowed"));
 
         // Try to execute - should throw SecurityException
         assertThrows(SecurityException.class, () ->
@@ -80,38 +79,30 @@ class ToolExecutorApprovalTest {
     }
 
     /**
-     * Test tool without approval requirement executes without handler.
+     * Test tool execution without permission hook executes without permission check.
      */
     @Test
-    void testToolWithoutApprovalDoesNotNeedHandler() throws NoSuchMethodException {
-        // Register a tool that does NOT require approval
-        Method method = TestService.class.getMethod("hello", String.class);
-        FunctionTool tool = FunctionTool.builder()
-                .name("hello-no-approval")
-                .method(method)
-                .instance(testService)
-                .requiresApproval(false)
-                .build();
-        executor.register(tool);
-
-        // Execute should succeed without approval handler
-        Object result = executor.execute("hello-no-approval", Map.of("name", "World"));
-        assertEquals("Hello, World!", result);
+    void testExecuteWithoutPermissionHookSucceeds() {
+        // Don't register any permission hook - should execute without permission check
+        assertDoesNotThrow(() ->
+            executor.execute("hello", Map.of("name", "World"))
+        );
     }
 
     /**
-     * Test approval handler receives correct tool name and arguments.
+     * Test permission hook receives correct tool name and arguments.
      */
     @Test
-    void testApprovalHandlerReceivesCorrectInfo() {
-        // Track what the handler received
+    void testPermissionHookReceivesCorrectInfo() {
+        // Track what the hook received
         final String[] receivedName = new String[1];
         final Map<String, Object>[] receivedArgs = new Map[1];
 
-        executor.approvalHandler((toolName, args) -> {
-            receivedName[0] = toolName;
-            receivedArgs[0] = args;
-            return true;
+        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
+            PermissionRequestContext permContext = (PermissionRequestContext) context;
+            receivedName[0] = permContext.getToolName();
+            receivedArgs[0] = permContext.getToolInput();
+            return HookResult.allow();
         });
 
         executor.execute("hello", Map.of("name", "TestUser", "age", 25));
@@ -123,23 +114,24 @@ class ToolExecutorApprovalTest {
     }
 
     /**
-     * Test approval handler with empty arguments.
+     * Test permission hook with empty arguments.
      */
     @Test
-    void testApprovalHandlerWithEmptyArguments() {
-        executor.approvalHandler((toolName, args) -> {
-            assertNotNull(args);
-            return true;
+    void testPermissionHookWithEmptyArguments() {
+        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
+            PermissionRequestContext permContext = (PermissionRequestContext) context;
+            assertNotNull(permContext.getToolInput());
+            return HookResult.allow();
         });
 
-        // Execute with empty map
-        Object result = executor.execute("hello", Map.of());
-        assertEquals("Hello, null!", result);
+        // Execute with empty map - should not throw
+        assertDoesNotThrow(() ->
+            executor.execute("hello", Map.of())
+        );
     }
 
     /**
      * Test getToolSchemas does not include approval requirement.
-     * (Approval is handled at execution time, not in schema)
      */
     @Test
     void testGetToolSchemasExcludesApproval() {

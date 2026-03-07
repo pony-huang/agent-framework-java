@@ -371,7 +371,6 @@ public abstract class MCPTool {
                 .name(normalized)
                 .description(tool.description() != null ? tool.description() : "")
                 .schema(schema)
-                .requiresApproval(determineApprovalMode(tool.name()))
                 .invoker(args -> callTool(tool.name(), args))
                 .build();
         functions.put(normalized, functionTool);
@@ -398,7 +397,6 @@ public abstract class MCPTool {
                 .name(normalized)
                 .description(description != null ? description : "")
                 .schema(schema)
-                .requiresApproval(determineApprovalMode(prompt.name()))
                 .invoker(args -> getPrompt(prompt.name(), args))
                 .build();
         prompts.put(normalized, functionTool);

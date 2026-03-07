@@ -1,6 +1,10 @@
 package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.events.SessionStartContext;
+import github.ponyhuang.agentframework.hooks.events.StopContext;
 import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
@@ -14,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Abstract base class for Agent implementations.
@@ -188,18 +193,55 @@ public abstract class BaseAgent implements Agent {
         LOG.info("Agent '{}' run started, message count: {}", name, messages != null ? messages.size() : 0);
         Map<String, Object> mergedOptions = mergeOptions(options);
 
+        HookExecutor hookExecutor = getHookExecutor();
+
+        // Fire SessionStart hook
+        if (hookExecutor != null) {
+            SessionStartContext sessionStartContext = new SessionStartContext();
+            sessionStartContext.setSessionId(UUID.randomUUID().toString());
+            sessionStartContext.setSource("startup");
+            sessionStartContext.setModel(client != null ? client.getModel() : "unknown");
+            sessionStartContext.setCwd(System.getProperty("user.dir"));
+            sessionStartContext.setPermissionMode("default");
+            hookExecutor.executeSessionStart(sessionStartContext);
+        }
+
         // Execute middleware chain if present
         if (!middlewares.isEmpty()) {
-            return executeMiddlewareChain(messages, mergedOptions);
+            ChatResponse response = executeMiddlewareChain(messages, mergedOptions);
+            fireStopHook(hookExecutor, response);
+            return response;
         }
 
         try {
             ChatResponse response = doRun(prepareMessages(messages), mergedOptions);
             LOG.info("Agent '{}' run completed", name);
+
+            // Fire Stop hook
+            fireStopHook(hookExecutor, response);
+
             return response;
         } catch (Exception e) {
             LOG.error("Agent '{}' run failed: {}", name, e.getMessage());
             throw e;
+        }
+    }
+
+    private void fireStopHook(HookExecutor hookExecutor, ChatResponse response) {
+        if (hookExecutor != null) {
+            StopContext stopContext = new StopContext();
+            stopContext.setStopHookActive(false);
+            if (response != null && response.getMessage() != null) {
+                StringBuilder sb = new StringBuilder();
+                response.getMessage().getContents().forEach(c -> {
+                    if (c.getText() != null) sb.append(c.getText());
+                });
+                stopContext.setLastAssistantMessage(sb.toString());
+            }
+            HookResult result = hookExecutor.executeStop(stopContext);
+            if (!result.isShouldContinue()) {
+                LOG.info("Stop hook prevented completion: {}", result.getStopReason());
+            }
         }
     }
 

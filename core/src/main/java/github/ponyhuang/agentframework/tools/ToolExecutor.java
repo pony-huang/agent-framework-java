@@ -1,11 +1,18 @@
 package github.ponyhuang.agentframework.tools;
 
+import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.events.PermissionRequestContext;
+import github.ponyhuang.agentframework.hooks.events.PostToolUseContext;
+import github.ponyhuang.agentframework.hooks.events.PostToolUseFailureContext;
+import github.ponyhuang.agentframework.hooks.events.PreToolUseContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 /**
  * Executes tools and manages tool registry.
@@ -16,7 +23,7 @@ public class ToolExecutor {
 
     private final Map<String, FunctionTool> tools = new ConcurrentHashMap<>();
     private final Map<String, Method> methodCache = new ConcurrentHashMap<>();
-    private ToolApprovalHandler approvalHandler;
+    private HookExecutor hookExecutor;
 
     /**
      * Registers a tool.
@@ -80,14 +87,12 @@ public class ToolExecutor {
                     name = method.getName();
                 }
                 String description = toolAnnotation.description();
-                boolean requiresApproval = toolAnnotation.requiresApproval();
 
                 FunctionTool tool = FunctionTool.builder()
                         .name(name)
                         .description(description)
                         .method(method)
                         .instance(instance)
-                        .requiresApproval(requiresApproval)
                         .build();
 
                 register(tool);
@@ -148,13 +153,13 @@ public class ToolExecutor {
     }
 
     /**
-     * Sets the approval handler for tools that require approval.
+     * Sets the hook executor for tool execution hooks.
      *
-     * @param handler the approval handler
+     * @param hookExecutor the hook executor
      * @return this executor for chaining
      */
-    public ToolExecutor approvalHandler(ToolApprovalHandler handler) {
-        this.approvalHandler = handler;
+    public ToolExecutor hookExecutor(HookExecutor hookExecutor) {
+        this.hookExecutor = hookExecutor;
         return this;
     }
 
@@ -175,28 +180,97 @@ public class ToolExecutor {
             throw new IllegalArgumentException("Tool not found: " + name);
         }
 
-        // Check if approval is required
-        if (tool.requiresApproval()) {
-            if (approvalHandler == null) {
-                LOG.warn("Tool {} requires approval but no approval handler is set", name);
-                throw new SecurityException("Tool '" + name + "' requires approval but no approval handler is configured");
+        Map<String, Object> args = arguments != null ? arguments : Map.of();
+        String toolUseId = UUID.randomUUID().toString();
+
+        // Fire PreToolUse hook
+        if (hookExecutor != null) {
+            PreToolUseContext preContext = new PreToolUseContext();
+            preContext.setToolName(name);
+            preContext.setToolInput(args);
+            preContext.setToolUseId(toolUseId);
+            preContext.setCwd(System.getProperty("user.dir"));
+            preContext.setPermissionMode("default");
+
+            HookResult preResult = hookExecutor.executePreToolUse(preContext);
+
+            // If hook denies, throw exception
+            if (!preResult.isAllow()) {
+                LOG.info("Tool {} blocked by PreToolUse hook: {}", name, preResult.getReason());
+                throw new SecurityException("Tool '" + name + "' blocked by hook: " + preResult.getReason());
             }
-            boolean approved = approvalHandler.approve(name, arguments != null ? arguments : Map.of());
-            if (!approved) {
-                LOG.info("Tool execution rejected by approval handler: {}", name);
-                throw new SecurityException("Tool execution was rejected for tool: " + name);
+
+            // Apply updated input if modified by hook
+            if (preResult.getHookSpecificOutput() != null) {
+                Object updatedInput = preResult.getHookSpecificOutput().get("updatedInput");
+                if (updatedInput instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> updated = (Map<String, Object>) updatedInput;
+                    args = updated;
+                }
             }
-            LOG.info("Tool {} approved by approval handler", name);
+        }
+
+        // Request permission via hook if hookExecutor is available
+        if (hookExecutor != null) {
+            PermissionRequestContext permissionContext = new PermissionRequestContext();
+            permissionContext.setToolName(name);
+            permissionContext.setToolInput(args);
+            permissionContext.setCwd(System.getProperty("user.dir"));
+            permissionContext.setPermissionMode("default");
+
+            HookResult permissionResult = hookExecutor.executePermissionRequest(permissionContext);
+
+            if (!permissionResult.isAllow()) {
+                LOG.info("Tool {} blocked by PermissionRequest hook: {}", name, permissionResult.getReason());
+                throw new SecurityException("Tool '" + name + "' blocked by permission hook: " + permissionResult.getReason());
+            }
         }
 
         try {
-            Object result = tool.invoke(arguments);
+            Object result = tool.invoke(args);
             LOG.info("Tool executed successfully: {}", name);
+
+            // Fire PostToolUse hook
+            if (hookExecutor != null) {
+                PostToolUseContext postContext = new PostToolUseContext();
+                postContext.setToolName(name);
+                postContext.setToolInput(args);
+                postContext.setToolResponse(convertResultToMap(result));
+                postContext.setToolUseId(toolUseId);
+                postContext.setCwd(System.getProperty("user.dir"));
+                postContext.setPermissionMode("default");
+                hookExecutor.executePostToolUse(postContext);
+            }
+
             return result;
         } catch (Exception e) {
             LOG.error("Tool execution failed: {}, error: {}", name, e.getMessage());
+
+            // Fire PostToolUseFailure hook
+            if (hookExecutor != null) {
+                PostToolUseFailureContext failureContext = new PostToolUseFailureContext();
+                failureContext.setToolName(name);
+                failureContext.setToolInput(args);
+                failureContext.setToolUseId(toolUseId);
+                failureContext.setError(e.getMessage());
+                failureContext.setCwd(System.getProperty("user.dir"));
+                failureContext.setPermissionMode("default");
+                hookExecutor.executePostToolUseFailure(failureContext);
+            }
+
             throw e;
         }
+    }
+
+    private Map<String, Object> convertResultToMap(Object result) {
+        if (result == null) {
+            return Map.of();
+        }
+        // Simple conversion - for complex objects would need more sophisticated handling
+        Map<String, Object> map = new HashMap<>();
+        map.put("result", result.toString());
+        return map;
     }
 
     /**

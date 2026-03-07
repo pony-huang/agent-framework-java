@@ -3,11 +3,13 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.hooks.HookEvent;
+import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.events.PermissionRequestContext;
 import github.ponyhuang.agentframework.mcp.MCPStdioTool;
 import github.ponyhuang.agentframework.mcp.MCPStreamableHTTPTool;
-import github.ponyhuang.agentframework.mcp.MCPTool.ApprovalMode;
 import github.ponyhuang.agentframework.tools.FunctionTool;
-import github.ponyhuang.agentframework.tools.ToolApprovalHandler;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.Content;
@@ -197,11 +199,9 @@ public class McpToolExample {
         // Create MCP tool with ALWAYS_REQUIRE approval mode
         MCPStdioTool mcpTool = MCPStdioTool.builder()
                 .name("everything-server")
-                .description("MCP server requiring approval for all tools")
+                .description("MCP server with tools")
                 .command(findNpx())
                 .args(List.of("-y", "@modelcontextprotocol/server-everything"))
-                // All tools require approval
-                .approvalMode(ApprovalMode.ALWAYS_REQUIRE)
                 .build();
 
         // Connect to MCP server
@@ -216,20 +216,26 @@ public class McpToolExample {
         // Debug: show all registered tools
         System.out.println("Total tools registered: " + executor.getToolCount());
 
-        // Set up approval handler - this could prompt the user, check policies, etc.
-        ToolApprovalHandler approvalHandler = (toolName, arguments) -> {
-            System.out.println("\n=== Tool Approval Request ===");
-            System.out.println("Tool: " + toolName);
-            System.out.println("Arguments: " + arguments);
+        // Set up hook executor for permission requests via hooks
+        HookExecutor hookExecutor = new HookExecutor();
+
+        // Register permission request hook - this could prompt the user, check policies, etc.
+        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
+            PermissionRequestContext permContext = (PermissionRequestContext) context;
+            System.out.println("\n=== Tool Permission Request ===");
+            System.out.println("Tool: " + permContext.getToolName());
+            System.out.println("Arguments: " + permContext.getToolInput());
             System.out.print("Approve this tool call? (y/n): ");
 
             Scanner scanner = new Scanner(System.in);
             String response = scanner.nextLine().trim().toLowerCase();
-            return "y".equals(response) || "yes".equals(response);
-        };
+            boolean approved = "y".equals(response) || "yes".equals(response);
 
-        // Attach approval handler to executor
-        executor.approvalHandler(approvalHandler);
+            return approved ? HookResult.allow() : HookResult.deny("User denied permission");
+        });
+
+        // Attach hook executor to tool executor
+        executor.hookExecutor(hookExecutor);
 
         // Build agent with MCP tool (for tool schemas)
         Agent agent = AgentBuilder.builder()
@@ -262,9 +268,9 @@ public class McpToolExample {
                 Map<String, Object> args = (Map<String, Object>) call.get("arguments");
                 String toolCallId = (String) call.get("id");
 
-                // Debug: Check if tool exists and its approval status
+                // Debug: Check if tool exists
                 FunctionTool tool = executor.getTool(name);
-                System.out.println("Executing tool: " + name + " found=" + (tool != null) + " requiresApproval=" + (tool != null ? tool.requiresApproval() : "N/A"));
+                System.out.println("Executing tool: " + name + " found=" + (tool != null));
 
                 try {
                     // This will trigger the approval handler for tools requiring approval

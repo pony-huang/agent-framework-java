@@ -22,9 +22,4 @@ public @interface Tool {
      * The description of what the tool does.
      */
     String description() default "";
-
-    /**
-     * Whether this tool requires approval before execution.
-     */
-    boolean requiresApproval() default false;
 }
