@@ -104,7 +104,6 @@ public class ComplexWorkflowExample {
             // Return response with new extra properties
             return ChatResponse.builder()
                     .id(response.getId())
-                    .objectType(response.getObjectType())
                     .created(response.getCreated())
                     .model(response.getModel())
                     .choices(response.getChoices())

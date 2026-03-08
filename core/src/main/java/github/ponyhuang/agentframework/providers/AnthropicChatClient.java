@@ -276,7 +276,6 @@ public class AnthropicChatClient extends DefaultChatClient {
 
         return ChatResponse.builder()
                 .id(message.id())
-                .objectType("message")
                 .created(Instant.now().getEpochSecond())
                 .model(message.model().asString())
                 .choices(List.of(choice))
@@ -302,7 +301,6 @@ public class AnthropicChatClient extends DefaultChatClient {
                     .build();
             ChatResponse.Choice choice = new ChatResponse.Choice(0, chunkMessage, null);
             return ChatResponse.builder()
-                    .objectType("message.delta")
                     .created(Instant.now().getEpochSecond())
                     .choices(List.of(choice))
                     .build();
@@ -320,7 +318,6 @@ public class AnthropicChatClient extends DefaultChatClient {
                     Message.builder().role(Role.ASSISTANT).build(),
                     finishReason);
             return ChatResponse.builder()
-                    .objectType("message.delta")
                     .created(Instant.now().getEpochSecond())
                     .choices(List.of(choice))
                     .usage(usage)

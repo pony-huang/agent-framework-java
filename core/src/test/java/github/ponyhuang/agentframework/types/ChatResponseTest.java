@@ -35,7 +35,6 @@ class ChatResponseTest {
 
         // Verify all fields
         assertEquals("chatcmpl-123", response.getId());
-        assertEquals("chat.completion", response.getObjectType());
         assertEquals(1234567890L, response.getCreated());
         assertEquals("gpt-4", response.getModel());
         assertEquals(1, response.getChoices().size());

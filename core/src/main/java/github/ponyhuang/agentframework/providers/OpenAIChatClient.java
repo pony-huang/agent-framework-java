@@ -236,7 +236,6 @@ public class OpenAIChatClient extends DefaultChatClient {
 
         return ChatResponse.builder()
                 .id(completion.id())
-                .objectType("chat.completion")
                 .created(completion.created())
                 .model(completion.model())
                 .choices(choices)
@@ -270,7 +269,6 @@ public class OpenAIChatClient extends DefaultChatClient {
 
         return ChatResponse.builder()
                 .id(chunk.id())
-                .objectType("chat.completion.chunk")
                 .created(chunk.created())
                 .model(chunk.model())
                 .choices(choices)

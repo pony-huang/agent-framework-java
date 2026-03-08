@@ -12,7 +12,6 @@ import java.util.Map;
 public class ChatResponse {
 
     private final String id;
-    private final String objectType;
     private final long created;
     private final String model;
     private final List<Choice> choices;
@@ -22,7 +21,6 @@ public class ChatResponse {
 
     private ChatResponse(Builder builder) {
         this.id = builder.id;
-        this.objectType = builder.objectType;
         this.created = builder.created;
         this.model = builder.model;
         this.choices = builder.choices;
@@ -35,9 +33,7 @@ public class ChatResponse {
         return id;
     }
 
-    public String getObjectType() {
-        return objectType;
-    }
+
 
     public long getCreated() {
         return created;
@@ -151,7 +147,6 @@ public class ChatResponse {
      */
     public static class Builder {
         private String id;
-        private String objectType = "chat.completion";
         private long created;
         private String model;
         private List<Choice> choices;
@@ -161,11 +156,6 @@ public class ChatResponse {
 
         public Builder id(String id) {
             this.id = id;
-            return this;
-        }
-
-        public Builder objectType(String objectType) {
-            this.objectType = objectType;
             return this;
         }
 
