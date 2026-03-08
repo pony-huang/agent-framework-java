@@ -25,7 +25,6 @@ class ChatResponseTest {
 
         ChatResponse response = ChatResponse.builder()
                 .id("chatcmpl-123")
-                .objectType("chat.completion")
                 .created(1234567890L)
                 .model("gpt-4")
                 .choices(List.of(choice))
