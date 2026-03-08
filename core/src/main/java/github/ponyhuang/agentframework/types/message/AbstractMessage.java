@@ -45,7 +45,7 @@ public abstract class AbstractMessage implements Message {
 
     @Override
     public String getTextContent() {
-        if (blocks == null || blocks.isEmpty()) {
+        if (blocks.isEmpty()) {
             return "";
         }
         return blocks.stream()
@@ -57,13 +57,11 @@ public abstract class AbstractMessage implements Message {
 
     @Override
     public boolean hasToolUse() {
-        if (blocks == null) return false;
         return blocks.stream().anyMatch(b -> b instanceof github.ponyhuang.agentframework.types.block.ToolUseBlock);
     }
 
     @Override
     public boolean hasToolResult() {
-        if (blocks == null) return false;
         return blocks.stream().anyMatch(b -> b instanceof github.ponyhuang.agentframework.types.block.ToolResultBlock);
     }
 }

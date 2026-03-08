@@ -48,7 +48,7 @@ class WorkflowBuilderTest {
             }
 
             @Override
-            public reactor.core.publisher.Flux<ChatResponse> runStream(List<Message> messages, java.util.Map<String, Object> options) {
+            public reactor.core.publisher.Flux<Message> runStream(List<Message> messages, java.util.Map<String, Object> options) {
                 return null;
             }
 
@@ -205,7 +205,7 @@ class WorkflowBuilderTest {
             }
 
             @Override
-            public reactor.core.publisher.Flux<ChatResponse> runStream(List<Message> messages, java.util.Map<String, Object> options) {
+            public reactor.core.publisher.Flux<Message> runStream(List<Message> messages, java.util.Map<String, Object> options) {
                 return null;
             }
 

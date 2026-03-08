@@ -62,9 +62,9 @@ public interface Agent {
      * Runs the agent with streaming.
      *
      * @param messages input messages
-     * @return a Flux of response updates
+     * @return a Flux of message updates
      */
-    default Flux<ChatResponse> runStream(List<Message> messages) {
+    default Flux<Message> runStream(List<Message> messages) {
         return runStream(messages, null);
     }
 
@@ -73,9 +73,9 @@ public interface Agent {
      *
      * @param messages input messages
      * @param options  additional options
-     * @return a Flux of response updates
+     * @return a Flux of message updates
      */
-    Flux<ChatResponse> runStream(List<Message> messages, Map<String, Object> options);
+    Flux<Message> runStream(List<Message> messages, Map<String, Object> options);
 
     /**
      * Creates a new session for this agent.

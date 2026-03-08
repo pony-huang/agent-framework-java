@@ -8,7 +8,6 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
-import github.ponyhuang.agentframework.types.block.TextBlock;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
@@ -39,7 +38,7 @@ public class LoopAgent extends BaseAgent {
     }
 
     @Override
-    protected ChatResponse doRun(List<Message> messages, Map<String, Object> options) {
+    protected Flux<Message> doRun(List<Message> messages, Map<String, Object> options) {
         List<Message> conversationMessages = new ArrayList<>(messages);
         int currentStep = 0;
 
@@ -62,8 +61,8 @@ public class LoopAgent extends BaseAgent {
 
             // Check if we have a function call
             if (!response.hasFunctionCall()) {
-                // No function call, return the response
-                return response;
+                // No function call, return the response as Flux
+                return Flux.fromIterable(conversationMessages);
             }
 
             // Handle function calls - ReAct loop
@@ -95,7 +94,7 @@ public class LoopAgent extends BaseAgent {
             // Check for termination
             if (terminationHandler != null && terminationHandler.shouldTerminate(functionName, functionArgs, toolResult)) {
                 LOG.info("Termination handler signaled stop at step {}", currentStep);
-                return response;
+                return Flux.fromIterable(conversationMessages);
             }
 
             // Add tool result message
@@ -107,19 +106,19 @@ public class LoopAgent extends BaseAgent {
         LOG.warn("Max steps reached: {}", maxSteps);
 
         // Return last response
-        return conversationMessages.size() > messages.size()
-                ? client.chat(ChatCompleteParams.builder()
-                        .messages(conversationMessages)
-                        .build())
-                : ChatResponse.builder()
-                        .messages(List.of(AssistantMessage.create("Maximum steps reached without task completion.")))
-                        .build();
-    }
+        if (conversationMessages.size() > messages.size()) {
+            ChatResponse finalResponse = client.chat(ChatCompleteParams.builder()
+                    .messages(conversationMessages)
+                    .build());
+            List<Message> allMessages = new ArrayList<>(conversationMessages);
+            if (finalResponse.getMessage() != null) {
+                allMessages.add(finalResponse.getMessage());
+            }
+            return Flux.fromIterable(allMessages);
+        }
 
-    @Override
-    protected Flux<ChatResponse> doRunStream(List<Message> messages, Map<String, Object> options) {
-        // Delegate to regular run for now
-        return Flux.just(doRun(messages, options));
+        Message maxStepsMessage = AssistantMessage.create("Maximum steps reached without task completion.");
+        return Flux.just(maxStepsMessage);
     }
 
     /**

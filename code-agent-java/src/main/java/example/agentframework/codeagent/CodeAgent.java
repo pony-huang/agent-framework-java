@@ -1,20 +1,21 @@
 package example.agentframework.codeagent;
 
 import com.agui.core.agent.AgentSubscriber;
-import com.agui.core.event.*;
+import com.agui.core.event.RunStartedEvent;
+import com.agui.core.event.StepStartedEvent;
+import example.agentframework.codeagent.config.AgentConfig;
+import example.agentframework.codeagent.trajectory.TrajectoryRecorder;
 import github.ponyhuang.agentframework.agents.BaseAgent;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
-import example.agentframework.codeagent.config.AgentConfig;
-import example.agentframework.codeagent.trajectory.TrajectoryRecorder;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.message.Message;
-import github.ponyhuang.agentframework.types.message.UserMessage;
-import github.ponyhuang.agentframework.types.message.AssistantMessage;
-import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -53,13 +54,8 @@ public class CodeAgent extends BaseAgent {
     }
 
     @Override
-    protected ChatResponse doRun(List<Message> messages, Map<String, Object> options) {
-        // Publish RUN_STARTED event
-        publishEvent(() -> {
-            RunStartedEvent event = new RunStartedEvent();
-            event.setRawEvent(Map.of("task", messages.isEmpty() ? "" : messages.get(0).getTextContent()));
-            return event;
-        });
+    protected Flux<Message> doRun(List<Message> messages, Map<String, Object> options) {
+
 
         List<Message> conversationMessages = new ArrayList<>(messages);
         int maxSteps = config.getMaxSteps();
@@ -68,15 +64,6 @@ public class CodeAgent extends BaseAgent {
         while (currentStep < maxSteps) {
             currentStep++;
             LOG.info("Step {}/{}", currentStep, maxSteps);
-
-            // Publish STEP_STARTED event
-            final int step = currentStep;
-            publishEvent(() -> {
-                StepStartedEvent event = new StepStartedEvent();
-                event.setStepName("step-" + step);
-                return event;
-            });
-
             // Build chat request
             ChatCompleteParams params = ChatCompleteParams.builder()
                     .messages(conversationMessages)
@@ -100,33 +87,6 @@ public class CodeAgent extends BaseAgent {
             Message assistantMessage = response.getMessage();
             conversationMessages.add(assistantMessage);
 
-            // Publish TEXT_MESSAGE_START event
-            final String messageId = UUID.randomUUID().toString();
-            publishEvent(() -> {
-                TextMessageStartEvent event = new TextMessageStartEvent();
-                event.setMessageId(messageId);
-                event.setRole("assistant");
-                return event;
-            });
-
-            // Publish TEXT_MESSAGE_CONTENT event
-            String textContent = assistantMessage.getTextContent();
-            if (textContent != null && !textContent.isEmpty()) {
-                publishEvent(() -> {
-                    TextMessageContentEvent event = new TextMessageContentEvent();
-                    event.setMessageId(messageId);
-                    event.setDelta(textContent);
-                    return event;
-                });
-            }
-
-            // Publish TEXT_MESSAGE_END event
-            publishEvent(() -> {
-                TextMessageEndEvent event = new TextMessageEndEvent();
-                event.setMessageId(messageId);
-                return event;
-            });
-
             // Check if we have a function call
             if (!response.hasFunctionCall()) {
                 // No function call, return the response
@@ -134,14 +94,7 @@ public class CodeAgent extends BaseAgent {
                     trajectoryRecorder.finish();
                 }
 
-                // Publish STEP_FINISHED event
-                publishEvent(() -> {
-                    StepFinishedEvent event = new StepFinishedEvent();
-                    event.setStepName("step-" + step);
-                    return event;
-                });
-
-                return response;
+                return Flux.fromIterable(conversationMessages);
             }
 
             // Handle function calls - ReAct loop
@@ -159,14 +112,6 @@ public class CodeAgent extends BaseAgent {
 
                 LOG.info("Executing tool: {}", functionName);
 
-                // Publish TOOL_CALL_START event
-                publishEvent(() -> {
-                    ToolCallStartEvent event = new ToolCallStartEvent();
-                    event.setToolCallId(toolCallId);
-                    event.setToolCallName(functionName);
-                    event.setParentMessageId(messageId);
-                    return event;
-                });
 
                 // Record tool call
                 if (trajectoryRecorder != null) {
@@ -184,14 +129,6 @@ public class CodeAgent extends BaseAgent {
 
                 final String resultStr = toolResult != null ? toolResult.toString() : "null";
 
-                // Publish TOOL_CALL_RESULT event
-                publishEvent(() -> {
-                    ToolCallResultEvent event = new ToolCallResultEvent();
-                    event.setToolCallId(toolCallId);
-                    event.setContent(resultStr);
-                    event.setMessageId(messageId);
-                    return event;
-                });
 
                 // Record tool result
                 if (trajectoryRecorder != null) {
@@ -225,7 +162,7 @@ public class CodeAgent extends BaseAgent {
                         trajectoryRecorder.finish();
                     }
                     // Return final response with completion info
-                    return response;
+                    return Flux.fromIterable(conversationMessages);
                 }
             }
         }
@@ -235,14 +172,19 @@ public class CodeAgent extends BaseAgent {
             trajectoryRecorder.finish();
         }
 
-        // Return last response
-        return conversationMessages.size() > messages.size()
-                ? client.chat(ChatCompleteParams.builder()
-                        .messages(conversationMessages)
-                        .build())
-                : ChatResponse.builder()
-                        .messages(List.of(AssistantMessage.create("Maximum steps reached without task completion.")))
-                        .build();
+        if (conversationMessages.size() > messages.size()) {
+            ChatResponse finalResponse = client.chat(ChatCompleteParams.builder()
+                    .messages(conversationMessages)
+                    .build());
+            List<Message> allMessages = new ArrayList<>(conversationMessages);
+            if (finalResponse.getMessage() != null) {
+                allMessages.add(finalResponse.getMessage());
+            }
+            return Flux.fromIterable(allMessages);
+        }
+
+        Message maxStepsMessage = AssistantMessage.create("Maximum steps reached without task completion.");
+        return Flux.just(maxStepsMessage);
     }
 
     private List<Map<String, Object>> extractFunctionCalls(Message message) {
@@ -275,11 +217,6 @@ public class CodeAgent extends BaseAgent {
         return calls;
     }
 
-    @Override
-    protected Flux<ChatResponse> doRunStream(List<Message> messages, Map<String, Object> options) {
-        // For now, delegate to regular run - streaming can be added later
-        return Flux.just(doRun(messages, options));
-    }
 
     /**
      * Handle task_done tool call.
@@ -351,56 +288,6 @@ public class CodeAgent extends BaseAgent {
         }
     }
 
-    /**
-     * Remove a subscriber from receiving agent events.
-     *
-     * @param subscriber the subscriber to remove
-     */
-    public void removeSubscriber(AgentSubscriber subscriber) {
-        subscribers.remove(subscriber);
-    }
-
-    /**
-     * Publish an event to all subscribers.
-     *
-     * @param eventFactory a factory that creates the event
-     */
-    private void publishEvent(java.util.function.Supplier<BaseEvent> eventFactory) {
-        if (subscribers.isEmpty()) {
-            return;
-        }
-        BaseEvent event = eventFactory.get();
-        if (event != null) {
-            for (AgentSubscriber subscriber : subscribers) {
-                try {
-                    subscriber.onEvent(event);
-                    // Also call specific event handler based on type
-                    switch (event.getType()) {
-                        case RUN_STARTED -> subscriber.onRunStartedEvent((RunStartedEvent) event);
-                        case RUN_FINISHED -> subscriber.onRunFinishedEvent((RunFinishedEvent) event);
-                        case RUN_ERROR -> subscriber.onRunErrorEvent((RunErrorEvent) event);
-                        case STEP_STARTED -> subscriber.onStepStartedEvent((StepStartedEvent) event);
-                        case STEP_FINISHED -> subscriber.onStepFinishedEvent((StepFinishedEvent) event);
-                        case TEXT_MESSAGE_START -> subscriber.onTextMessageStartEvent((TextMessageStartEvent) event);
-                        case TEXT_MESSAGE_CONTENT -> subscriber.onTextMessageContentEvent((TextMessageContentEvent) event);
-                        case TEXT_MESSAGE_END -> subscriber.onTextMessageEndEvent((TextMessageEndEvent) event);
-                        case TOOL_CALL_START -> subscriber.onToolCallStartEvent((ToolCallStartEvent) event);
-                        case TOOL_CALL_END -> subscriber.onToolCallEndEvent((ToolCallEndEvent) event);
-                        case TOOL_CALL_ARGS -> subscriber.onToolCallArgsEvent((ToolCallArgsEvent) event);
-                        case TOOL_CALL_RESULT -> subscriber.onToolCallResultEvent((ToolCallResultEvent) event);
-                        case STATE_SNAPSHOT -> subscriber.onStateSnapshotEvent((StateSnapshotEvent) event);
-                        case STATE_DELTA -> subscriber.onStateDeltaEvent((StateDeltaEvent) event);
-                        case MESSAGES_SNAPSHOT -> subscriber.onMessagesSnapshotEvent((MessagesSnapshotEvent) event);
-                        case RAW -> subscriber.onRawEvent((RawEvent) event);
-                        case CUSTOM -> subscriber.onCustomEvent((CustomEvent) event);
-                        default -> { }
-                    }
-                } catch (Exception e) {
-                    LOG.error("Error notifying subscriber: {}", e.getMessage(), e);
-                }
-            }
-        }
-    }
 
     /**
      * Create a new LoopAgent builder.

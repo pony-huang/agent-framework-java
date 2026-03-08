@@ -107,9 +107,9 @@ public interface AgentSession {
      * Runs the agent with streaming.
      *
      * @param userMessage the user message
-     * @return flux of response updates
+     * @return flux of message updates
      */
-    default Flux<ChatResponse> runStream(String userMessage) {
+    default Flux<Message> runStream(String userMessage) {
         return runStream(UserMessage.create(userMessage));
     }
 
@@ -117,9 +117,9 @@ public interface AgentSession {
      * Runs the agent with streaming.
      *
      * @param message the message
-     * @return flux of response updates
+     * @return flux of message updates
      */
-    Flux<ChatResponse> runStream(Message message);
+    Flux<Message> runStream(Message message);
 
     /**
      * Gets session metadata.

@@ -176,18 +176,9 @@ public abstract class BaseAgent implements Agent {
      *
      * @param messages input messages
      * @param options options
-     * @return chat response
+     * @return flux of messages
      */
-    protected abstract ChatResponse doRun(List<Message> messages, Map<String, Object> options);
-
-    /**
-     * Abstract method to implement the streaming run logic.
-     *
-     * @param messages input messages
-     * @param options options
-     * @return flux of chat responses
-     */
-    protected abstract Flux<ChatResponse> doRunStream(List<Message> messages, Map<String, Object> options);
+    protected abstract Flux<Message> doRun(List<Message> messages, Map<String, Object> options);
 
     @Override
     public ChatResponse run(List<Message> messages, Map<String, Object> options) {
@@ -215,7 +206,13 @@ public abstract class BaseAgent implements Agent {
         }
 
         try {
-            ChatResponse response = doRun(prepareMessages(messages), mergedOptions);
+            Flux<Message> messageFlux = doRun(prepareMessages(messages), mergedOptions);
+            List<Message> collectedMessages = messageFlux.collectList().block();
+
+            ChatResponse response = ChatResponse.builder()
+                    .messages(collectedMessages)
+                    .build();
+
             LOG.info("Agent '{}' run completed", name);
 
             // Fire Stop hook
@@ -263,15 +260,19 @@ public abstract class BaseAgent implements Agent {
             return middleware.process(context, (ctx) -> executeNextMiddleware(iterator, ctx.getMessages(), ctx.getOptions()));
         } else {
             // End of chain, execute actual agent run
-            return doRun(prepareMessages(messages), options);
+            Flux<Message> messageFlux = doRun(prepareMessages(messages), options);
+            List<Message> collectedMessages = messageFlux.collectList().block();
+            return ChatResponse.builder()
+                    .messages(collectedMessages)
+                    .build();
         }
     }
 
     @Override
-    public Flux<ChatResponse> runStream(List<Message> messages, Map<String, Object> options) {
+    public Flux<Message> runStream(List<Message> messages, Map<String, Object> options) {
         LOG.info("Agent '{}' stream started, message count: {}", name, messages != null ? messages.size() : 0);
         Map<String, Object> mergedOptions = mergeOptions(options);
-        return doRunStream(prepareMessages(messages), mergedOptions)
+        return doRun(prepareMessages(messages), mergedOptions)
                 .doOnComplete(() -> LOG.info("Agent '{}' stream completed", name))
                 .doOnError(e -> LOG.error("Agent '{}' stream failed: {}", name, e.getMessage()));
     }

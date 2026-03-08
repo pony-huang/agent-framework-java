@@ -105,14 +105,14 @@ public class CodeAgentSession implements AgentSession {
     }
 
     @Override
-    public Flux<ChatResponse> runStream(Message message) {
+    public Flux<Message> runStream(Message message) {
         if (message != null) {
             this.messages.add(message);
         }
         return agent.runStream(new ArrayList<>(this.messages))
-                .doOnNext(response -> {
-                    if (response.getMessage() != null) {
-                        this.messages.add(response.getMessage());
+                .doOnNext(msg -> {
+                    if (msg != null) {
+                        this.messages.add(msg);
                     }
                 });
     }

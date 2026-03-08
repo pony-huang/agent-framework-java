@@ -141,10 +141,8 @@ public class HostingExample {
             try (OutputStream os = exchange.getResponseBody()) {
                 // Subscribe to Flux and write to output stream
                 session.runStream(UserMessage.create(body))
-                        .doOnNext(response -> {
-                            String text = response.getMessage().getTextContent(); // This might be partial text
-                            // Note: In real streaming, ChatResponse should return delta. 
-                            // Assuming ChatClient implementation returns deltas for streaming.
+                        .doOnNext(message -> {
+                            String text = message.getTextContent();
                             if (text != null && !text.isEmpty()) {
                                 try {
                                     String data = "data: " + text + "\n\n";

@@ -1,7 +1,5 @@
 package example.agentframework.codeagent.samples;
 
-import com.agui.core.agent.AgentSubscriber;
-import com.agui.core.event.*;
 import example.agentframework.codeagent.CodeAgent;
 import example.agentframework.codeagent.tools.ToolRegistry;
 import github.ponyhuang.agentframework.clients.ChatClient;
@@ -61,34 +59,7 @@ public class SimpleCodeAgentExample {
                 .trajectoryRecorder(trajectoryRecorder)
                 .build();
 
-        // Add AG-UI event subscriber to print events
-        AgentSubscriber eventLogger = new AgentSubscriber() {
-            @Override
-            public void onEvent(BaseEvent event) {
-                try {
-                    LOG.info("[AG-UI EVENT] {}: {}", event.getType().getName(), toJson(event));
-                } catch (Exception e) {
-                    LOG.error("Error serializing event: {}", e.getMessage());
-                }
-            }
 
-            @Override
-            public void onTextMessageContentEvent(TextMessageContentEvent event) {
-                LOG.info("[TEXT_MESSAGE_CONTENT] messageId={}, delta=\"{}\"", event.getMessageId(), truncate(event.getDelta(), 100));
-            }
-
-            @Override
-            public void onToolCallStartEvent(ToolCallStartEvent event) {
-                LOG.info("[TOOL_CALL_START] toolCallId={}, toolName={}", event.getToolCallId(), event.getToolCallName());
-            }
-
-            @Override
-            public void onToolCallResultEvent(ToolCallResultEvent event) {
-                LOG.info("[TOOL_CALL_RESULT] toolCallId={}, result=\"{}\"", event.getToolCallId(), truncate(event.getContent(), 200));
-            }
-        };
-
-        agent.addSubscriber(eventLogger);
 
         // Execute a simple task
         String task = "Create a simple HelloWorld.java file in the current directory that prints 'Hello, World!'";

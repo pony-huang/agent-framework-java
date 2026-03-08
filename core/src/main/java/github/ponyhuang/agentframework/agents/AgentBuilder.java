@@ -16,6 +16,7 @@ import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.tools.FunctionTool;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -418,7 +419,7 @@ public class AgentBuilder {
         }
 
         @Override
-        protected ChatResponse doRun(List<Message> messages, Map<String, Object> options) {
+        protected Flux<Message> doRun(List<Message> messages, Map<String, Object> options) {
             ChatCompleteParams params =
                     ChatCompleteParams.builder()
                             .messages(messages)
@@ -426,21 +427,8 @@ public class AgentBuilder {
                             .tools(tools.isEmpty() ? null : tools)
                             .build();
 
-            return client.chat(params);
-        }
-
-        @Override
-        protected reactor.core.publisher.Flux<github.ponyhuang.agentframework.types.ChatResponse> doRunStream(
-                List<Message> messages, Map<String, Object> options) {
-
-            ChatCompleteParams params =
-                    ChatCompleteParams.builder()
-                            .messages(messages)
-                            .model(client.getModel())
-                            .tools(tools.isEmpty() ? null : tools)
-                            .build();
-
-            return client.chatStream(params);
+            ChatResponse response = client.chat(params);
+            return Flux.just(response.getMessage());
         }
     }
 }

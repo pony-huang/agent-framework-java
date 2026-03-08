@@ -1,7 +1,6 @@
 package github.ponyhuang.agentframework.sessions;
 
 import github.ponyhuang.agentframework.agents.Agent;
-import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
@@ -82,13 +81,13 @@ public class InMemoryAgentSession implements AgentSession {
     }
 
     @Override
-    public Flux<ChatResponse> runStream(Message message) {
+    public Flux<Message> runStream(Message message) {
         addMessage(message);
         LOG.debug("Running stream for session: {}", id);
-        Flux<ChatResponse> responseFlux = getAgent().runStream(getMessages());
-        return responseFlux.doOnNext(response -> {
-            if (response.getMessage() != null) {
-                addMessage(response.getMessage());
+        Flux<Message> messageFlux = getAgent().runStream(getMessages());
+        return messageFlux.doOnNext(msg -> {
+            if (msg != null) {
+                addMessage(msg);
             }
         });
     }
