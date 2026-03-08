@@ -2,7 +2,6 @@ package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.hooks.HookExecutor;
-import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.sessions.SessionOptions;
@@ -110,21 +109,6 @@ public interface Agent {
      * @return this agent for chaining
      */
     Agent addContextProvider(ContextProvider provider);
-
-    /**
-     * Gets all middleware for this agent.
-     *
-     * @return list of middleware
-     */
-    List<AgentMiddleware> getMiddlewares();
-
-    /**
-     * Adds a middleware to this agent.
-     *
-     * @param middleware the middleware
-     * @return this agent for chaining
-     */
-    Agent addMiddleware(AgentMiddleware middleware);
 
     /**
      * Gets the hook executor for this agent.

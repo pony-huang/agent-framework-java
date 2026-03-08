@@ -5,7 +5,7 @@ import github.ponyhuang.agentframework.hooks.HookExecutor;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.events.SessionStartContext;
 import github.ponyhuang.agentframework.hooks.events.StopContext;
-import github.ponyhuang.agentframework.middleware.AgentMiddleware;
+import github.ponyhuang.agentframework.hooks.events.UserPromptSubmitContext;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.sessions.SessionOptions;
@@ -35,13 +35,11 @@ public abstract class BaseAgent implements Agent {
     protected ChatClient client;
     protected List<Map<String, Object>> tools;
     protected List<ContextProvider> contextProviders;
-    protected List<AgentMiddleware> middlewares;
     protected Map<String, Object> defaultOptions;
 
     protected BaseAgent() {
         this.tools = new ArrayList<>();
         this.contextProviders = new ArrayList<>();
-        this.middlewares = new ArrayList<>();
         this.defaultOptions = new HashMap<>();
     }
 
@@ -51,7 +49,6 @@ public abstract class BaseAgent implements Agent {
         this.client = builder.client;
         this.tools = builder.tools != null ? new ArrayList<>(builder.tools) : new ArrayList<>();
         this.contextProviders = builder.contextProviders != null ? new ArrayList<>(builder.contextProviders) : new ArrayList<>();
-        this.middlewares = builder.middlewares != null ? new ArrayList<>(builder.middlewares) : new ArrayList<>();
         this.defaultOptions = builder.defaultOptions != null ? new HashMap<>(builder.defaultOptions) : new HashMap<>();
     }
 
@@ -81,11 +78,6 @@ public abstract class BaseAgent implements Agent {
     }
 
     @Override
-    public List<AgentMiddleware> getMiddlewares() {
-        return new ArrayList<>(middlewares);
-    }
-
-    @Override
     public Agent addTool(Map<String, Object> tool) {
         if (tool != null) {
             tools.add(tool);
@@ -97,14 +89,6 @@ public abstract class BaseAgent implements Agent {
     public Agent addContextProvider(ContextProvider provider) {
         if (provider != null) {
             contextProviders.add(provider);
-        }
-        return this;
-    }
-
-    @Override
-    public Agent addMiddleware(AgentMiddleware middleware) {
-        if (middleware != null) {
-            middlewares.add(middleware);
         }
         return this;
     }
@@ -187,7 +171,6 @@ public abstract class BaseAgent implements Agent {
 
         HookExecutor hookExecutor = getHookExecutor();
 
-        // Fire SessionStart hook
         if (hookExecutor != null) {
             SessionStartContext sessionStartContext = new SessionStartContext();
             sessionStartContext.setSessionId(UUID.randomUUID().toString());
@@ -196,17 +179,25 @@ public abstract class BaseAgent implements Agent {
             sessionStartContext.setCwd(System.getProperty("user.dir"));
             sessionStartContext.setPermissionMode("default");
             hookExecutor.executeSessionStart(sessionStartContext);
-        }
 
-        // Execute middleware chain if present
-        if (!middlewares.isEmpty()) {
-            ChatResponse response = executeMiddlewareChain(messages, mergedOptions);
-            fireStopHook(hookExecutor, response);
-            return response;
+            if (messages != null && !messages.isEmpty()) {
+                UserPromptSubmitContext promptContext = new UserPromptSubmitContext();
+                promptContext.setSessionId(sessionStartContext.getSessionId());
+                Message lastMessage = messages.get(messages.size() - 1);
+                promptContext.setPrompt(lastMessage.getTextContent());
+                HookResult promptResult = hookExecutor.executeUserPromptSubmit(promptContext);
+                if (!promptResult.isAllow()) {
+                    LOG.info("UserPromptSubmit hook blocked execution: {}", promptResult.getReason());
+                    return ChatResponse.builder()
+                            .messages(List.of())
+                            .build();
+                }
+            }
         }
 
         try {
-            Flux<Message> messageFlux = doRun(prepareMessages(messages), mergedOptions);
+            List<Message> preparedMessages = prepareMessages(messages);
+            Flux<Message> messageFlux = doRun(preparedMessages, mergedOptions);
             List<Message> collectedMessages = messageFlux.collectList().block();
 
             ChatResponse response = ChatResponse.builder()
@@ -215,7 +206,6 @@ public abstract class BaseAgent implements Agent {
 
             LOG.info("Agent '{}' run completed", name);
 
-            // Fire Stop hook
             fireStopHook(hookExecutor, response);
 
             return response;
@@ -248,26 +238,6 @@ public abstract class BaseAgent implements Agent {
         }
     }
 
-    private ChatResponse executeMiddlewareChain(List<Message> messages, Map<String, Object> options) {
-        java.util.Iterator<AgentMiddleware> iterator = middlewares.iterator();
-        return executeNextMiddleware(iterator, messages, options);
-    }
-
-    private ChatResponse executeNextMiddleware(java.util.Iterator<AgentMiddleware> iterator, List<Message> messages, Map<String, Object> options) {
-        if (iterator.hasNext()) {
-            AgentMiddleware middleware = iterator.next();
-            AgentMiddleware.AgentMiddlewareContext context = new AgentMiddleware.AgentMiddlewareContext(this, messages, options);
-            return middleware.process(context, (ctx) -> executeNextMiddleware(iterator, ctx.getMessages(), ctx.getOptions()));
-        } else {
-            // End of chain, execute actual agent run
-            Flux<Message> messageFlux = doRun(prepareMessages(messages), options);
-            List<Message> collectedMessages = messageFlux.collectList().block();
-            return ChatResponse.builder()
-                    .messages(collectedMessages)
-                    .build();
-        }
-    }
-
     @Override
     public Flux<Message> runStream(List<Message> messages, Map<String, Object> options) {
         LOG.info("Agent '{}' stream started, message count: {}", name, messages != null ? messages.size() : 0);
@@ -289,7 +259,6 @@ public abstract class BaseAgent implements Agent {
         protected ChatClient client;
         protected List<Map<String, Object>> tools;
         protected List<ContextProvider> contextProviders;
-        protected List<AgentMiddleware> middlewares;
         protected Map<String, Object> defaultOptions;
 
         @SuppressWarnings("unchecked")
@@ -323,12 +292,6 @@ public abstract class BaseAgent implements Agent {
         }
 
         @SuppressWarnings("unchecked")
-        public B middlewares(List<AgentMiddleware> middlewares) {
-            this.middlewares = middlewares;
-            return (B) this;
-        }
-
-        @SuppressWarnings("unchecked")
         public B addTool(Map<String, Object> tool) {
             if (this.tools == null) {
                 this.tools = new ArrayList<>();
@@ -343,15 +306,6 @@ public abstract class BaseAgent implements Agent {
                 this.contextProviders = new ArrayList<>();
             }
             this.contextProviders.add(provider);
-            return (B) this;
-        }
-
-        @SuppressWarnings("unchecked")
-        public B addMiddleware(AgentMiddleware middleware) {
-            if (this.middlewares == null) {
-                this.middlewares = new ArrayList<>();
-            }
-            this.middlewares.add(middleware);
             return (B) this;
         }
 

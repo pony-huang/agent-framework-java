@@ -3,8 +3,9 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.middleware.AgentMiddleware;
-import github.ponyhuang.agentframework.observability.TracingMiddleware;
+import github.ponyhuang.agentframework.hooks.HookEvent;
+import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.observability.TracingHookHandler;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ConversationSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
@@ -37,8 +38,8 @@ import java.io.UnsupportedEncodingException;
  * End-to-End Example: Customer Support Bot
  *
  * Demonstrates:
- * 1. OpenTelemetry Tracing
- * 2. Middleware for PII Redaction
+ * 1. OpenTelemetry Tracing with Hooks
+ * 2. Hooks for PII Redaction
  * 3. Context Provider for User Profile Injection
  * 4. Workflow for Intent Routing
  * 5. Memory for Session State
@@ -46,40 +47,30 @@ import java.io.UnsupportedEncodingException;
 public class EndToEndExample {
 
     public static void main(String[] args) {
-        // Fix console encoding for LoggingSpanExporter
         configureLogging();
 
-        // Create a chat client
         ChatClient client = ClientExample.openAIChatClient();
 
-        // 1. Setup Observability
         OpenTelemetry openTelemetry = initOpenTelemetry();
         Tracer tracer = openTelemetry.getTracer("com.example.agentframework");
-        AgentMiddleware tracingMiddleware = new TracingMiddleware(tracer);
 
-        // 2. Define Middleware (PII Redaction)
-        AgentMiddleware piiMiddleware = (context, next) -> {
-            // Simple redaction of emails
-            List<Message> redactedMessages = new ArrayList<>();
-            for (Message msg : context.getMessages()) {
-                String text = msg.getTextContent();
-                if (text != null && text.contains("@")) { // Naive email check
-                    text = text.replaceAll("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b", "[EMAIL_REDACTED]");
-                    redactedMessages.add("user".equalsIgnoreCase(msg.getRoleAsString()) ? UserMessage.create(text) : AssistantMessage.create(text));
-                } else {
-                    redactedMessages.add(msg);
-                }
+        HookExecutor hookExecutor = HookExecutor.builder().build();
+        TracingHookHandler.registerTracingHooks(hookExecutor, tracer);
+
+        hookExecutor.registerHook(HookEvent.USER_PROMPT_SUBMIT, context -> {
+            github.ponyhuang.agentframework.hooks.events.UserPromptSubmitContext promptContext =
+                    (github.ponyhuang.agentframework.hooks.events.UserPromptSubmitContext) context;
+            String text = promptContext.getPrompt();
+            if (text != null && text.contains("@")) {
+                text = text.replaceAll("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b", "[EMAIL_REDACTED]");
+                promptContext.setPrompt(text);
             }
-            // In a real implementation, we would replace messages in context, but AgentMiddlewareContext.setMessages is not fully implemented in this sample
-            // For now, we just proceed. Real implementation would modify the request.
-            return next.apply(context);
-        };
+            return github.ponyhuang.agentframework.hooks.HookResult.allow();
+        });
 
-        // 3. Define Context Provider (User Profile)
         ContextProvider userProfileProvider = new ContextProvider() {
             @Override
             public List<Message> beforeRun(Object agent, ConversationSession session, List<Message> messages, Map<String, Object> options) {
-                // Read from options (which comes from Workflow Context) since we don't have a session in this workflow execution
                 String userLevel = (String) options.get("user_level");
                 if (userLevel == null) userLevel = "REGULAR";
 
@@ -89,39 +80,18 @@ public class EndToEndExample {
             }
         };
 
-        // 4. Create Agents
-
-        // Triage Agent: Analyzes intent
         Agent triageAgent = AgentBuilder.builder()
                 .name("TriageAgent")
                 .instructions("Classify user intent into: REFUND, TECH_SUPPORT, or GENERAL. Reply ONLY with the category.")
                 .client(client)
+                .hookExecutor(hookExecutor)
                 .build();
-
-        triageAgent.addMiddleware((context, next) -> {
-            ChatResponse response = next.apply(context);
-            String intent = response.getMessage().getTextContent().trim().toUpperCase();
-
-            Map<String, Object> extra = new HashMap<>();
-            if (response.getExtraProperties() != null) extra.putAll(response.getExtraProperties());
-
-            if (intent.contains("REFUND")) extra.put("is_refund", true);
-            else if (intent.contains("TECH")) extra.put("is_tech", true);
-            else extra.put("is_general", true);
-
-            return ChatResponse.builder()
-                    .id(response.getId())
-                    .messages(response.getMessages())
-                    .usage(response.getUsage())
-                    .extraProperties(extra)
-                    .build();
-        });
 
         Agent financeAgent = AgentBuilder.builder()
                 .name("FinanceAgent")
                 .instructions("You are a finance specialist. Help with refunds.")
                 .client(client)
-                .middleware(tracingMiddleware)
+                .hookExecutor(hookExecutor)
                 .contextProvider(userProfileProvider)
                 .build();
 
@@ -129,7 +99,7 @@ public class EndToEndExample {
                 .name("TechAgent")
                 .instructions("You are a technical support engineer.")
                 .client(client)
-                .middleware(tracingMiddleware)
+                .hookExecutor(hookExecutor)
                 .contextProvider(userProfileProvider)
                 .build();
 
@@ -137,11 +107,10 @@ public class EndToEndExample {
                 .name("GeneralAgent")
                 .instructions("You are a general assistant.")
                 .client(client)
-                .middleware(tracingMiddleware)
+                .hookExecutor(hookExecutor)
                 .contextProvider(userProfileProvider)
                 .build();
 
-        // 5. Build Workflow
         Workflow workflow = WorkflowBuilder.builder()
                 .name("SupportWorkflow")
                 .addAgentNode("triage", triageAgent)
@@ -154,7 +123,6 @@ public class EndToEndExample {
                 .startAt("triage")
                 .addEdge("triage", "route")
 
-                // Intent routing based on triage
                 .addConditionalEdge("route", "refund", "$is_refund")
                 .addConditionalEdge("route", "tech", "$is_tech")
                 .addConditionalEdge("route", "general", "$is_general")
@@ -164,7 +132,6 @@ public class EndToEndExample {
                 .addEdge("general", "end")
                 .build();
 
-        // 6. Execute Workflow
         Map<String, Object> context = new HashMap<>();
         context.put("user_level", "VIP");
 
@@ -196,7 +163,6 @@ public class EndToEndExample {
             System.setProperty("sun.stdout.encoding", "UTF-8");
             System.setProperty("sun.stderr.encoding", "UTF-8");
         } catch (Exception e) {
-            // Ignore
         }
     }
 }

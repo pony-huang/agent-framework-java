@@ -1,6 +1,5 @@
 package github.ponyhuang.agentframework.hooks;
 
-import github.ponyhuang.agentframework.hooks.events.PreToolUseContext;
 
 import java.time.Duration;
 

@@ -6,7 +6,6 @@ import github.ponyhuang.agentframework.hooks.HookExecutor;
 import github.ponyhuang.agentframework.hooks.HookExecutor.HookFunction;
 import github.ponyhuang.agentframework.hooks.HookHandler;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.mcp.MCPTool;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
@@ -35,7 +34,6 @@ public class AgentBuilder {
     private ChatClient client;
     private List<Map<String, Object>> tools = new ArrayList<>();
     private List<ContextProvider> contextProviders = new ArrayList<>();
-    private List<AgentMiddleware> middlewares = new ArrayList<>();
     private Map<String, Object> defaultOptions = new HashMap<>();
     private ToolExecutor toolExecutor = new ToolExecutor();
     private HookExecutor hookExecutor;
@@ -221,32 +219,6 @@ public class AgentBuilder {
     }
 
     /**
-     * Adds a middleware to the agent.
-     *
-     * @param middleware the middleware
-     * @return this builder
-     */
-    public AgentBuilder middleware(AgentMiddleware middleware) {
-        if (middleware != null) {
-            this.middlewares.add(middleware);
-        }
-        return this;
-    }
-
-    /**
-     * Adds multiple middlewares to the agent.
-     *
-     * @param middlewares the middlewares
-     * @return this builder
-     */
-    public AgentBuilder middlewares(List<AgentMiddleware> middlewares) {
-        if (middlewares != null) {
-            this.middlewares.addAll(middlewares);
-        }
-        return this;
-    }
-
-    /**
      * Sets default options for the agent.
      *
      * @param options the default options
@@ -370,7 +342,7 @@ public class AgentBuilder {
             throw new IllegalStateException("ChatClient is required");
         }
 
-        return new DefaultAgent(name, instructions, client, tools, contextProviders, middlewares, defaultOptions, hookExecutor);
+        return new DefaultAgent(name, instructions, client, tools, contextProviders, defaultOptions, hookExecutor);
     }
 
     /**
@@ -395,7 +367,7 @@ public class AgentBuilder {
 
         public DefaultAgent(String name, String instructions, ChatClient client,
                            List<Map<String, Object>> tools, List<ContextProvider> contextProviders,
-                           List<AgentMiddleware> middlewares, Map<String, Object> defaultOptions,
+                           Map<String, Object> defaultOptions,
                            HookExecutor hookExecutor) {
             super();
             this.name = name;
@@ -403,7 +375,6 @@ public class AgentBuilder {
             this.client = client;
             this.tools = tools != null ? new ArrayList<>(tools) : new ArrayList<>();
             this.contextProviders = contextProviders != null ? new ArrayList<>(contextProviders) : new ArrayList<>();
-            this.middlewares = middlewares != null ? new ArrayList<>(middlewares) : new ArrayList<>();
             this.defaultOptions = defaultOptions != null ? new HashMap<>(defaultOptions) : new HashMap<>();
             this.hookExecutor = hookExecutor;
         }
