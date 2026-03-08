@@ -1,6 +1,10 @@
 package github.ponyhuang.agentframework.orchestrations;
 
 import github.ponyhuang.agentframework.agents.Agent;
+import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.events.SubagentStartContext;
+import github.ponyhuang.agentframework.hooks.events.SubagentStopContext;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
@@ -20,6 +24,18 @@ public class GroupChatAgentBuilder {
     private Agent moderator;
     private int maxTurns = 10;
     private Function<List<Message>, Agent> selectionStrategy;
+    private HookExecutor hookExecutor;
+
+    /**
+     * Sets the hook executor.
+     *
+     * @param hookExecutor the hook executor
+     * @return this builder
+     */
+    public GroupChatAgentBuilder hookExecutor(HookExecutor hookExecutor) {
+        this.hookExecutor = hookExecutor;
+        return this;
+    }
 
     /**
      * Adds a participant to the group chat.
@@ -102,11 +118,50 @@ public class GroupChatAgentBuilder {
                 : participants.get(0);
 
         for (int turn = 0; turn < maxTurns; turn++) {
+            // Determine hook executor for this agent
+            HookExecutor executor = hookExecutor != null ? hookExecutor : currentSpeaker.getHookExecutor();
+            String subagentId = UUID.randomUUID().toString();
+
+            // Fire SubagentStart
+            if (executor != null) {
+                SubagentStartContext startContext = new SubagentStartContext();
+                startContext.setAgentId(currentSpeaker.getName());
+                startContext.setAgentType("group_chat_participant");
+                startContext.setCwd(System.getProperty("user.dir"));
+                startContext.setPermissionMode("default");
+                HookResult result = executor.executeSubagentStart(startContext);
+                if (!result.isAllow()) {
+                    System.out.println("SubagentStart hook blocked agent: " + currentSpeaker.getName());
+                    // Skip this turn or handle blocking
+                    // For now, let's break or skip. Let's select next speaker and continue.
+                    if (selectionStrategy != null) {
+                        currentSpeaker = selectionStrategy.apply(conversationHistory);
+                    } else {
+                        int currentIndex = participants.indexOf(currentSpeaker);
+                        currentSpeaker = participants.get((currentIndex + 1) % participants.size());
+                    }
+                    continue;
+                }
+            }
+
             // Current speaker responds
             List<Message> responseMessages = currentSpeaker.runStream(new ArrayList<>(conversationHistory)).collectList().block();
             ChatResponse response = ChatResponse.builder()
                     .messages(responseMessages)
                     .build();
+
+            // Fire SubagentStop
+            if (executor != null) {
+                SubagentStopContext stopContext = new SubagentStopContext();
+                stopContext.setAgentId(currentSpeaker.getName());
+                stopContext.setAgentType("group_chat_participant");
+                if (response.getMessage() != null) {
+                    stopContext.setLastAssistantMessage(getMessageText(response.getMessage()));
+                }
+                stopContext.setCwd(System.getProperty("user.dir"));
+                stopContext.setPermissionMode("default");
+                executor.executeSubagentStop(stopContext);
+            }
 
             if (response.getMessage() != null) {
                 conversationHistory.add(response.getMessage());

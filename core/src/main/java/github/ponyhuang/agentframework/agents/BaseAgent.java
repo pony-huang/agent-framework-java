@@ -17,10 +17,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Abstract base class for Agent implementations.
@@ -242,9 +244,82 @@ public abstract class BaseAgent implements Agent {
     public Flux<Message> runStream(List<Message> messages, Map<String, Object> options) {
         LOG.info("Agent '{}' stream started, message count: {}", name, messages != null ? messages.size() : 0);
         Map<String, Object> mergedOptions = mergeOptions(options);
-        return doRun(prepareMessages(messages), mergedOptions)
-                .doOnComplete(() -> LOG.info("Agent '{}' stream completed", name))
+
+        HookExecutor hookExecutor = getHookExecutor();
+        final String[] sessionId = {null};
+
+        if (hookExecutor != null) {
+            SessionStartContext sessionStartContext = new SessionStartContext();
+            sessionId[0] = UUID.randomUUID().toString();
+            sessionStartContext.setSessionId(sessionId[0]);
+            sessionStartContext.setSource("startup");
+            sessionStartContext.setModel(client != null ? client.getModel() : "unknown");
+            sessionStartContext.setCwd(System.getProperty("user.dir"));
+            sessionStartContext.setPermissionMode("default");
+            hookExecutor.executeSessionStart(sessionStartContext);
+
+            if (messages != null && !messages.isEmpty()) {
+                UserPromptSubmitContext promptContext = new UserPromptSubmitContext();
+                promptContext.setSessionId(sessionId[0]);
+                Message lastMessage = messages.get(messages.size() - 1);
+                promptContext.setPrompt(lastMessage.getTextContent());
+                HookResult promptResult = hookExecutor.executeUserPromptSubmit(promptContext);
+                if (!promptResult.isAllow()) {
+                    LOG.info("UserPromptSubmit hook blocked execution: {}", promptResult.getReason());
+                    return Flux.empty();
+                }
+            }
+        }
+
+        Flux<Message> messageFlux = doRun(prepareMessages(messages), mergedOptions);
+
+        AtomicReference<List<Message>> collectedMessagesRef = new AtomicReference<>(new ArrayList<>());
+
+        return messageFlux
+                .doOnNext(message -> {
+                    collectedMessagesRef.get().add(message);
+                    if (hookExecutor == null) return;
+                })
+                .doOnComplete(() -> {
+                    LOG.info("Agent '{}' stream completed", name);
+                    if (hookExecutor != null) {
+                        List<Message> collectedMessages = collectedMessagesRef.get();
+                        if (!collectedMessages.isEmpty()) {
+                            List<Message> reversedMessages = new ArrayList<>(collectedMessages);
+                            Collections.reverse(reversedMessages);
+                            ChatResponse response = ChatResponse.builder()
+                                    .messages(reversedMessages)
+                                    .build();
+                            fireStopHook(hookExecutor, sessionId[0], response);
+                        } else {
+                            fireStopHook(hookExecutor, sessionId[0], null);
+                        }
+                    }
+                })
                 .doOnError(e -> LOG.error("Agent '{}' stream failed: {}", name, e.getMessage()));
+    }
+
+    private void fireStopHook(HookExecutor hookExecutor, String sessionId, ChatResponse response) {
+        if (hookExecutor != null) {
+            StopContext stopContext = new StopContext();
+            stopContext.setStopHookActive(false);
+            if (response != null && response.getMessage() != null) {
+                StringBuilder sb = new StringBuilder();
+                github.ponyhuang.agentframework.types.message.Message msg = response.getMessage();
+                if (msg.getBlocks() != null) {
+                    msg.getBlocks().forEach(b -> {
+                        if (b instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
+                            sb.append(((github.ponyhuang.agentframework.types.block.TextBlock) b).getText());
+                        }
+                    });
+                }
+                stopContext.setLastAssistantMessage(sb.toString());
+            }
+            HookResult result = hookExecutor.executeStop(stopContext);
+            if (!result.isShouldContinue()) {
+                LOG.info("Stop hook prevented completion: {}", result.getStopReason());
+            }
+        }
     }
 
     /**

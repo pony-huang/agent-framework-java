@@ -23,9 +23,23 @@ public class GroupChatMigrationExample {
         ChatClient client = ClientExample.openAIChatClient();
 
         HookExecutor hookExecutor = HookExecutor.builder().build();
-        hookExecutor.registerHook(HookEvent.STOP, context -> {
-            if (context instanceof github.ponyhuang.agentframework.hooks.events.StopContext stopContext) {
+        hookExecutor.registerHook(HookEvent.SUBAGENT_STOP, context -> {
+            if (context instanceof github.ponyhuang.agentframework.hooks.events.SubagentStopContext stopContext) {
                 System.out.println("\n[Agent]: " + stopContext.getLastAssistantMessage());
+            }
+            return github.ponyhuang.agentframework.hooks.HookResult.allow();
+        });
+
+        hookExecutor.registerHook(HookEvent.SUBAGENT_START, context -> {
+            if (context instanceof github.ponyhuang.agentframework.hooks.events.SubagentStartContext startContext) {
+                System.out.println("\n[Subagent Start]: " + startContext.getAgentId());
+            }
+            return github.ponyhuang.agentframework.hooks.HookResult.allow();
+        });
+
+        hookExecutor.registerHook(HookEvent.SUBAGENT_STOP, context -> {
+            if (context instanceof github.ponyhuang.agentframework.hooks.events.SubagentStopContext stopContext) {
+                System.out.println("[Subagent Stop]: " + stopContext.getAgentId());
             }
             return github.ponyhuang.agentframework.hooks.HookResult.allow();
         });
