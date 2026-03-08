@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.observability;
 
 import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;

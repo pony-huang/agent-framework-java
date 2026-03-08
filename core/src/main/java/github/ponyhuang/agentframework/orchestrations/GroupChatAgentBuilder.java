@@ -2,8 +2,9 @@ package github.ponyhuang.agentframework.orchestrations;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
-import github.ponyhuang.agentframework.types.Role;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 
 import java.util.*;
 import java.util.function.Function;
@@ -93,7 +94,7 @@ public class GroupChatAgentBuilder {
         }
 
         // Add user message
-        conversationHistory.add(Message.user(input));
+        conversationHistory.add(UserMessage.create(input));
 
         Agent currentSpeaker = selectionStrategy != null
                 ? selectionStrategy.apply(conversationHistory)
@@ -125,7 +126,7 @@ public class GroupChatAgentBuilder {
         }
 
         // Return last response
-        return conversationHistory.size() > 0 && conversationHistory.get(conversationHistory.size() - 1).getRole() == Role.ASSISTANT
+        return conversationHistory.size() > 0 && "assistant".equalsIgnoreCase(conversationHistory.get(conversationHistory.size() - 1).getRoleAsString())
                 ? createResponseFromMessage(conversationHistory.get(conversationHistory.size() - 1))
                 : null;
     }
@@ -134,13 +135,24 @@ public class GroupChatAgentBuilder {
         if (moderatorResponse == null || moderatorResponse.getMessage() == null) {
             return false;
         }
-        String text = moderatorResponse.getMessage().getText().toLowerCase();
-        return text.contains("end") || text.contains("conclusion") || text.contains("finished");
+        String text = getMessageText(moderatorResponse.getMessage());
+        return text != null && (text.toLowerCase().contains("end") || text.toLowerCase().contains("conclusion") || text.toLowerCase().contains("finished"));
+    }
+
+    private String getMessageText(Message message) {
+        if (message.getBlocks() == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof TextBlock) {
+                sb.append(((TextBlock) block).getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     private ChatResponse createResponseFromMessage(Message message) {
         return ChatResponse.builder()
-                .choices(List.of(new ChatResponse.Choice(0, message, "stop")))
+                .messages(List.of(message))
                 .build();
     }
 

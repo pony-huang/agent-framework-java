@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.middleware;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 
 import java.util.List;
 import java.util.Map;

@@ -5,7 +5,7 @@ import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.orchestrations.GroupChatAgentBuilder;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 
 import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 
@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /**
  * Migration Example: Group Chat with Round-Robin Selector
- * 
+ *
  * Equivalent to AutoGen's GroupChat with custom speaker selection.
  * Reference: python/samples/03-workflows/orchestrations/group_chat_simple_selector.py
  */
@@ -26,7 +26,7 @@ public class GroupChatMigrationExample {
         // Middleware to print conversation trace
         AgentMiddleware loggingMiddleware = (context, next) -> {
             ChatResponse response = next.apply(context);
-            System.out.println("\n[" + context.getAgent().getName() + "]: " + response.getMessage().getText());
+            System.out.println("\n[" + context.getAgent().getName() + "]: " + response.getMessage().getTextContent());
             return response;
         };
 
@@ -87,12 +87,12 @@ public class GroupChatMigrationExample {
                 .selectionStrategy(roundRobinSelector) // Use custom selector
                 .maxTurns(6); // Stop after 6 turns
 
-        System.out.println("Starting Group Chat: 'How does Python’s Protocol differ from abstract base classes?'\n");
+        System.out.println("Starting Group Chat: 'How does Python's Protocol differ from abstract base classes?'\n");
 
         // 4. Execute
         // AutoGen: user_proxy.initiate_chat(manager, message=...)
-        ChatResponse result = groupChat.execute("How does Python’s Protocol differ from abstract base classes?");
-        
+        ChatResponse result = groupChat.execute("How does Python's Protocol differ from abstract base classes?");
+
         System.out.println("\nGroup Chat Finished.");
     }
 }

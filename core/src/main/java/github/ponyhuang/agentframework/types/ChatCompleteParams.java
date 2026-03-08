@@ -1,5 +1,6 @@
 package github.ponyhuang.agentframework.types;
 
+import github.ponyhuang.agentframework.types.message.Message;
 import java.util.List;
 import java.util.Map;
 
@@ -97,8 +98,8 @@ public class ChatCompleteParams {
         }
         if (messages != null) {
             return messages.stream()
-                    .filter(m -> m.getRole() == Role.SYSTEM)
-                    .map(Message::getText)
+                    .filter(m -> "system".equalsIgnoreCase(m.getRoleAsString()))
+                    .map(Message::getTextContent)
                     .findFirst()
                     .orElse(null);
         }

@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.workflows;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +163,7 @@ public class WorkflowExecutor {
             // Filter to only include user and system messages (exclude assistant messages from previous nodes)
             // This prevents "consecutive assistant message" errors from some API providers
             return messages.stream()
-                    .filter(m -> m.getRole() != Role.ASSISTANT)
+                    .filter(m -> !"assistant".equalsIgnoreCase(m.getRoleAsString()))
                     .collect(Collectors.toList());
         }
         return new ArrayList<>();

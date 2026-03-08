@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.clients;
 
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 
 /**

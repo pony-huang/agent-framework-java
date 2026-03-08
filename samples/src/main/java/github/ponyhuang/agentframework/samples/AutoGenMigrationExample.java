@@ -5,7 +5,8 @@ import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 
 /**
  * Migration Example: Two-Agent Chat
@@ -32,13 +33,13 @@ public class AutoGenMigrationExample {
         AgentSession session = assistant.createSession();
 
         System.out.println("User: Write a haiku about Java.");
-        ChatResponse response = session.run(Message.user("Write a haiku about Java."));
+        ChatResponse response = session.run(UserMessage.create("Write a haiku about Java."));
 
-        System.out.println("Assistant: " + response.getMessage().getText());
+        System.out.println("Assistant: " + response.getMessage().getTextContent());
         
         // 4. Multi-turn (optional)
         System.out.println("\nUser: Explain it.");
-        response = session.run(Message.user("Explain it."));
-        System.out.println("Assistant: " + response.getMessage().getText());
+        response = session.run(UserMessage.create("Explain it."));
+        System.out.println("Assistant: " + response.getMessage().getTextContent());
     }
 }

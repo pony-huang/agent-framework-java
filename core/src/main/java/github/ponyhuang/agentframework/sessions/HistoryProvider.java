@@ -1,6 +1,6 @@
 package github.ponyhuang.agentframework.sessions;
 
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 
 import java.util.List;
 

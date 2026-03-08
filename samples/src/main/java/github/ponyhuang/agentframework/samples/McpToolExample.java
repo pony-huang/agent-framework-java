@@ -3,23 +3,13 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
-import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.hooks.events.PermissionRequestContext;
 import github.ponyhuang.agentframework.mcp.MCPStdioTool;
 import github.ponyhuang.agentframework.mcp.MCPStreamableHTTPTool;
-import github.ponyhuang.agentframework.tools.FunctionTool;
-import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Content;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 
-import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
 
 /**
  * Examples demonstrating how to use MCP (Model Context Protocol) tools with agents.
@@ -29,143 +19,74 @@ import java.util.Scanner;
  */
 public class McpToolExample {
 
-    // Default paths for npx on Windows - adjust if your Node.js is installed elsewhere
-    private static final String[] NPX_PATHS = {
-            "npx",  // Try PATH first
-            System.getenv("LOCALAPPDATA") + "\\Microsoft\\WindowsApps\\npx.cmd",
-            System.getenv("APPDATA") + "\\npm\\npx.cmd",
-            "C:\\Program Files\\nodejs\\npx.cmd",
-            "C:\\Program Files (x86)\\nodejs\\npx.cmd",
-            // Common installation paths
-            "D:\\env\\node-v24.12.0-win-x64\\npx.cmd",
-            "D:\\Software\\node\\node_global\\npx.cmd"
-    };
-
-    /**
-     * Find npx executable path.
-     */
-    private static String findNpx() {
-        // First try PATH
-        String pathEnv = System.getenv("PATH");
-        if (pathEnv != null) {
-            for (String dir : pathEnv.split(";")) {
-                File npx = new File(dir, "npx.cmd");
-                if (npx.exists()) {
-                    return npx.getAbsolutePath();
-                }
-                npx = new File(dir, "npx");
-                if (npx.exists()) {
-                    return npx.getAbsolutePath();
-                }
-            }
-        }
-        // Try common installation paths
-        for (String npxPath : NPX_PATHS) {
-            if (npxPath != null) {
-                File npx = new File(npxPath);
-                if (npx.exists()) {
-                    return npx.getAbsolutePath();
-                }
-            }
-        }
-        return "npx"; // Fallback to just "npx" - will fail if not in PATH
-    }
-
     public static void main(String[] args) {
-        // Verify npx can be found
-        String npxPath = findNpx();
-        System.out.println("Using npx: " + npxPath);
+        // This example requires MCP-enabled agents
+        // Please ensure you have the necessary dependencies and MCP servers configured
 
-        // Create a chat client
+        // Create a chat client (using OpenAI as example)
         ChatClient client = ClientExample.openAIChatClient();
 
-        // Example 1: Using stdio transport (local MCP server)
-//        example1StdioTransport(client);
+        // Example 1: Stdio Transport (commented out as it requires a local MCP server)
+        // example1StdioTransport(client);
 
-        // Example 2: Using HTTP transport (remote MCP server)
-//        example2HttpTransport(client);
+        // Example 2: HTTP Transport
+        // example2HttpTransport(client);
 
-        // Example 3: Using approval handler for tools that require approval
-        example3ApprovalHandler(client);
+        System.out.println("MCP examples require MCP server configuration.");
+        System.out.println("Uncomment the example methods to run them.");
     }
 
-    /**
-     * Example 1: Stdio Transport
-     *
-     * Connect to a local MCP server using stdio (standard input/output).
-     * This is commonly used for CLI-based MCP servers.
-     *
-     * JSON configuration equivalent:
-     * {
-     *   "mcpServers": {
-     *     "everything": {
-     *       "command": "npx",
-     *       "args": ["-y", "@modelcontextprotocol/server-everything"]
-     *     }
-     *   }
-     * }
-     */
     static void example1StdioTransport(ChatClient client) {
         System.out.println("=== Example 1: Stdio Transport ===");
 
         // Create MCP stdio tool - similar to Python config:
-        // {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-everything"]}
+        // {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]}
         MCPStdioTool mcpTool = MCPStdioTool.builder()
-                .name("everything")
-                .description("MCP Everything Server - provides tools, prompts, and resources")
+                .name("filesystem")
+                .description("Filesystem server - read and write files")
                 .command(findNpx())
-                .args(List.of("-y", "@modelcontextprotocol/server-everything"))
-                // Optional: environment variables
-                // .env(Map.of("NODE_ENV", "production"))
+                .args(List.of("-y", "@modelcontextprotocol/server-filesystem", System.getProperty("user.home")))
                 .build();
+
+        // Connect to MCP server
+        mcpTool.connect();
+
+        // Wait for connection
+        waitForConnection(mcpTool);
 
         // Build agent with MCP tool
         Agent agent = AgentBuilder.builder()
-                .name("mcp-assistant")
+                .name("filesystem-assistant")
                 .instructions("You can use the available tools to help the user.")
                 .client(client)
-                .mcpTool(mcpTool)  // Add MCP tool
+                .mcpTool(mcpTool)
                 .build();
 
         // Run the agent
         ChatResponse response = agent.run(List.of(
-                Message.user("List all available tools you have access to.")
+                UserMessage.create("List all available tools you have access to.")
         ));
 
-        System.out.println("Response: " + response.getMessage().getText());
+        System.out.println("Response: " + response.getMessage().getTextContent());
 
         // Clean up
         mcpTool.close();
     }
 
-    /**
-     * Example 2: HTTP Transport
-     *
-     * Connect to a remote MCP server using HTTP/SSE (Server-Sent Events).
-     *
-     * JSON configuration equivalent:
-     * {
-     *   "mcpServers": {
-     *     "context7": {
-     *       "url": "https://mcp.context7.com/mcp"
-     *     }
-     *   }
-     * }
-     */
     static void example2HttpTransport(ChatClient client) {
         System.out.println("=== Example 2: HTTP Transport ===");
 
-        // Create MCP HTTP tool - similar to Python config:
-        // {"url": "https://mcp.context7.com/mcp"}
         MCPStreamableHTTPTool mcpTool = MCPStreamableHTTPTool.builder()
                 .name("context7")
                 .description("Context7 MCP Server - provides documentation and code search")
                 .url("https://mcp.context7.com/mcp")
-                // Optional: custom HTTP client with headers
-                // .httpClient(HttpClient.newBuilder()
-                //     .connectTimeout(Duration.ofSeconds(10))
-                //     .build())
                 .build();
+
+        // Connect
+        mcpTool.connect();
+
+        // Wait for connection
+        waitForHttpConnection(mcpTool);
 
         // Build agent with MCP tool
         Agent agent = AgentBuilder.builder()
@@ -177,136 +98,63 @@ public class McpToolExample {
 
         // Run the agent
         ChatResponse response = agent.run(List.of(
-                Message.user("Search for information about Java streams API.")
+                UserMessage.create("Search for information about Java streams API.")
         ));
 
-        System.out.println("Response: " + response.getMessage().getText());
+        System.out.println("Response: " + response.getMessage().getTextContent());
 
         // Clean up
         mcpTool.close();
     }
 
-
-    /**
-     * Example 3: Using Approval Handler
-     *
-     * Shows how to use ToolExecutor with an approval handler for tools
-     * that require approval before execution.
-     */
-    static void example3ApprovalHandler(ChatClient client) {
-        System.out.println("=== Example 3: Approval Handler ===");
-
-        // Create MCP tool with ALWAYS_REQUIRE approval mode
-        MCPStdioTool mcpTool = MCPStdioTool.builder()
-                .name("everything-server")
-                .description("MCP server with tools")
-                .command(findNpx())
-                .args(List.of("-y", "@modelcontextprotocol/server-everything"))
-                .build();
-
-        // Connect to MCP server
-        mcpTool.connect();
-
-        // Create ToolExecutor and register MCP tools
-        ToolExecutor executor = new ToolExecutor();
-        for (FunctionTool func : mcpTool.getFunctions()) {
-            executor.register(func);
-        }
-
-        // Debug: show all registered tools
-        System.out.println("Total tools registered: " + executor.getToolCount());
-
-        // Set up hook executor for permission requests via hooks
-        HookExecutor hookExecutor = new HookExecutor();
-
-        // Register permission request hook - this could prompt the user, check policies, etc.
-        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
-            PermissionRequestContext permContext = (PermissionRequestContext) context;
-            System.out.println("\n=== Tool Permission Request ===");
-            System.out.println("Tool: " + permContext.getToolName());
-            System.out.println("Arguments: " + permContext.getToolInput());
-            System.out.print("Approve this tool call? (y/n): ");
-
-            Scanner scanner = new Scanner(System.in);
-            String response = scanner.nextLine().trim().toLowerCase();
-            boolean approved = "y".equals(response) || "yes".equals(response);
-
-            return approved ? HookResult.allow() : HookResult.deny("User denied permission");
-        });
-
-        // Attach hook executor to tool executor
-        executor.hookExecutor(hookExecutor);
-
-        // Build agent with MCP tool (for tool schemas)
-        Agent agent = AgentBuilder.builder()
-                .name("approval-assistant")
-                .instructions("You have access to tools that require approval.")
-                .client(client)
-                .mcpTool(mcpTool)
-                .build();
-
-        // Run agent loop with manual tool execution
-        List<Message> messages = new ArrayList<>();
-        // Use a prompt that actually requires tool execution, not just listing
-        messages.add(Message.user("What is 5 + 7? Calculate it using the get-sum tool."));
-
-        ChatResponse response = null;
-        int maxRounds = 3;
-        for (int i = 0; i < maxRounds; i++) {
-            response = agent.run(messages);
-            messages.add(response.getMessage());
-
-            // Extract and execute tool calls
-            List<Map<String, Object>> toolCalls = extractToolCalls(response.getMessage());
-            if (toolCalls.isEmpty()) {
+    private static void waitForConnection(MCPStdioTool mcpTool) {
+        System.out.println("Waiting for MCP server connection...");
+        int retries = 10;
+        while (!mcpTool.isConnected() && retries > 0) {
+            try {
+                Thread.sleep(1000);
+                retries--;
+            } catch (InterruptedException e) {
                 break;
             }
-
-            for (Map<String, Object> call : toolCalls) {
-                String name = (String) call.get("name");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> args = (Map<String, Object>) call.get("arguments");
-                String toolCallId = (String) call.get("id");
-
-                // Debug: Check if tool exists
-                FunctionTool tool = executor.getTool(name);
-                System.out.println("Executing tool: " + name + " found=" + (tool != null));
-
-                try {
-                    // This will trigger the approval handler for tools requiring approval
-                    Object result = executor.execute(name, args);
-                    messages.add(Message.tool(toolCallId, name, result));
-                    System.out.println("Tool result: " + result);
-                } catch (SecurityException e) {
-                    // Tool was rejected by approval handler
-                    messages.add(Message.tool(toolCallId, name, "Tool execution rejected: " + e.getMessage()));
-                    System.out.println("Tool rejected: " + e.getMessage());
-                }
-            }
         }
-
-        System.out.println("\nFinal response: " + response.getMessage().getText());
-
-        // Clean up
-        mcpTool.close();
+        if (!mcpTool.isConnected()) {
+            throw new RuntimeException("Failed to connect to MCP server");
+        }
+        System.out.println("Connected!");
     }
 
-    /**
-     * Extract tool calls from an assistant message.
-     */
-    private static List<Map<String, Object>> extractToolCalls(Message message) {
-        List<Map<String, Object>> calls = new ArrayList<>();
-        if (message.getContents() == null) {
-            return calls;
-        }
-        for (Content content : message.getContents()) {
-            if (content.getType() == Content.ContentType.FUNCTION_CALL) {
-                Map<String, Object> call = content.getFunctionCall();
-                if (call != null && !call.isEmpty()) {
-                    calls.add(call);
-                }
+    private static void waitForHttpConnection(MCPStreamableHTTPTool mcpTool) {
+        System.out.println("Waiting for MCP server connection...");
+        int retries = 10;
+        while (!mcpTool.isConnected() && retries > 0) {
+            try {
+                Thread.sleep(1000);
+                retries--;
+            } catch (InterruptedException e) {
+                break;
             }
         }
-        return calls;
+        if (!mcpTool.isConnected()) {
+            throw new RuntimeException("Failed to connect to MCP server");
+        }
+        System.out.println("Connected!");
+    }
+
+    private static String findNpx() {
+        // Try to find npx in PATH
+        String[] paths = {"npx", "npx.cmd"};
+        for (String path : paths) {
+            try {
+                Process p = Runtime.getRuntime().exec(path + " --version");
+                if (p.waitFor() == 0) {
+                    return path;
+                }
+            } catch (Exception e) {
+                // Continue to next
+            }
+        }
+        // Default to npx (Windows typically has npx.cmd)
+        return "npx";
     }
 }

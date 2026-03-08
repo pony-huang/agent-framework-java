@@ -5,7 +5,8 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 
 import java.util.List;
 
@@ -33,20 +34,20 @@ public class LoopAgentExample {
 
         // Run the agent
         List<Message> messages = List.of(
-                Message.user("Calculate 15 + 27, then multiply the result by 3")
+                UserMessage.create("Calculate 15 + 27, then multiply the result by 3")
         );
 
         ChatResponse response = agent.run(messages);
 
         System.out.println("=== Final Response ===");
-        System.out.println(response.getMessage().getText());
+        System.out.println(response.getMessage().getTextContent());
 
         // Also demonstrate using session
         System.out.println("\n=== Using Session ===");
         var session = agent.createSession();
-        session.addMessage(Message.user("What is 100 divided by 4?"));
-        ChatResponse sessionResponse = session.run(Message.user("What is 100 divided by 4?"));
-        System.out.println(sessionResponse.getMessage().getText());
+        session.addMessage(UserMessage.create("What is 100 divided by 4?"));
+        ChatResponse sessionResponse = session.run(UserMessage.create("What is 100 divided by 4?"));
+        System.out.println(sessionResponse.getMessage().getTextContent());
     }
 
     /**

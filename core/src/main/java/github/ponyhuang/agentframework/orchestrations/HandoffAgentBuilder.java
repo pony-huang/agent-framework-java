@@ -2,7 +2,9 @@ package github.ponyhuang.agentframework.orchestrations;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 
 import java.util.*;
 import java.util.function.Function;
@@ -83,7 +85,7 @@ public class HandoffAgentBuilder {
 
         for (int i = 0; i < maxHandoffs; i++) {
             // Execute current agent
-            Message userMessage = Message.user(currentInput);
+            Message userMessage = UserMessage.create(currentInput);
             lastResponse = currentAgent.run(List.of(userMessage));
 
             // Check for handoff
@@ -100,12 +102,23 @@ public class HandoffAgentBuilder {
 
             // Transform output for next agent
             if (lastResponse.getMessage() != null) {
-                currentInput = lastResponse.getMessage().getText();
+                currentInput = getMessageText(lastResponse.getMessage());
             }
             currentAgent = nextAgent;
         }
 
         return lastResponse;
+    }
+
+    private static String getMessageText(Message message) {
+        if (message.getBlocks() == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof TextBlock) {
+                sb.append(((TextBlock) block).getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     /**
@@ -119,7 +132,9 @@ public class HandoffAgentBuilder {
             if (response == null || response.getMessage() == null) {
                 return null;
             }
-            String text = response.getMessage().getText().toLowerCase();
+            String text = getMessageText(response.getMessage());
+            if (text == null) return null;
+            text = text.toLowerCase();
             for (Map.Entry<String, String> entry : keywordToAgentMap.entrySet()) {
                 if (text.contains(entry.getKey().toLowerCase())) {
                     return entry.getValue();

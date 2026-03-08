@@ -2,7 +2,10 @@ package github.ponyhuang.agentframework.orchestrations;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,7 +52,7 @@ public class ConcurrentAgentBuilder {
      * @return list of responses
      */
     public List<ChatResponse> execute(String input) {
-        Message message = Message.user(input);
+        Message message = UserMessage.create(input);
         return execute(List.of(message));
     }
 
@@ -104,17 +107,28 @@ public class ConcurrentAgentBuilder {
         StringBuilder aggregated = new StringBuilder();
         for (ChatResponse response : responses) {
             if (response.getMessage() != null) {
-                String text = response.getMessage().getText();
+                String text = getMessageText(response.getMessage());
                 if (text != null) {
                     aggregated.append(text).append("\n");
                 }
             }
         }
 
-        Message aggregatedMessage = Message.assistant(aggregated.toString().trim());
+        Message aggregatedMessage = AssistantMessage.create(aggregated.toString().trim());
         return ChatResponse.builder()
-                .choices(List.of(new ChatResponse.Choice(0, aggregatedMessage, "stop")))
+                .messages(List.of(aggregatedMessage))
                 .build();
+    }
+
+    private String getMessageText(Message message) {
+        if (message.getBlocks() == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof TextBlock) {
+                sb.append(((TextBlock) block).getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     /**

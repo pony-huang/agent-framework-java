@@ -3,8 +3,8 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.types.Message;
-import github.ponyhuang.agentframework.types.Role;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.workflows.Workflow;
 import github.ponyhuang.agentframework.workflows.WorkflowBuilder;
 
@@ -32,15 +32,15 @@ public class WorkflowExample {
 
         // Execute workflow
         Map<String, Object> context = new HashMap<>();
-        context.put("messages", List.of(Message.user("What is machine learning?")));
+        context.put("messages", List.of(UserMessage.create("What is machine learning?")));
 
         Workflow.Result result = workflow.execute(context);
 
         System.out.println("Success: " + result.isSuccess());
         if (result.getMessages() != null) {
             for (Message msg : result.getMessages()) {
-                if (msg.getRole() == Role.ASSISTANT) {
-                    System.out.println("Final: " + msg.getText());
+                if ("assistant".equalsIgnoreCase(msg.getRoleAsString())) {
+                    System.out.println("Final: " + msg.getTextContent());
                 }
             }
         }

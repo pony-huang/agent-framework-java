@@ -4,7 +4,8 @@ import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.workflows.Workflow;
 import github.ponyhuang.agentframework.workflows.WorkflowBuilder;
 
@@ -14,7 +15,7 @@ import java.util.Map;
 
 /**
  * Example demonstrating a complex workflow with branching.
- * 
+ *
  * Workflow:
  * 1. Router Agent: Analyzes the user request and decides the topic.
  * 2. Condition Node: Routes based on the topic (Tech or General).
@@ -52,41 +53,27 @@ public class ComplexWorkflowExample {
                 .name("RoutingWorkflow")
                 .addAgentNode("router", routerAgent)
                 .addConditionNode("check_topic", "Check Topic", context -> {
-                    // This predicate is not used for routing logic in current WorkflowExecutor implementation
-                    // The routing logic is in the edges.
-                    // But we need this node to be the source of conditional edges.
-                    return true; 
+                    return true;
                 })
                 .addAgentNode("tech_agent", techAgent)
                 .addAgentNode("general_agent", generalAgent)
                 .addEndNode("end", "End")
-                
+
                 // Edges
                 .startAt("router")
                 .addEdge("router", "check_topic")
                 // Conditional Edges from 'check_topic'
-                .addConditionalEdge("check_topic", "tech_agent", "$is_tech") // Custom condition check
+                .addConditionalEdge("check_topic", "tech_agent", "$is_tech")
                 .addConditionalEdge("check_topic", "general_agent", "$is_general")
-                
+
                 .addEdge("tech_agent", "end")
                 .addEdge("general_agent", "end")
                 .build();
 
-        // Prepare Context with custom condition logic
-        // Since WorkflowExecutor's default condition check is very simple (checking boolean in context),
-        // we need to wrap the execution or rely on the fact that we can't easily inject logic into edges dynamically 
-        // without modifying the executor.
-        // HOWEVER, let's look at WorkflowExecutor.evaluateEdgeCondition:
-        // if (condition.startsWith("$")) { Object value = context.get(condition.substring(1)); ... }
-        // So we need to put "is_tech" or "is_general" into the context BEFORE the edge is evaluated.
-        // But the router output is in the messages, not in a boolean variable.
-        //
-        // WORKAROUND: We can use a Middleware on the Router Agent to set these context variables!
-        
         routerAgent.addMiddleware((context, next) -> {
             ChatResponse response = next.apply(context);
-            String text = response.getMessage().getText().trim().toUpperCase();
-            
+            String text = response.getMessage().getTextContent().trim().toUpperCase();
+
             // Create a new map for extra properties
             Map<String, Object> extra = new HashMap<>();
             if (response.getExtraProperties() != null) {
@@ -100,13 +87,13 @@ public class ComplexWorkflowExample {
                 extra.put("is_tech", false);
                 extra.put("is_general", true);
             }
-            
+
             // Return response with new extra properties
             return ChatResponse.builder()
                     .id(response.getId())
                     .created(response.getCreated())
                     .model(response.getModel())
-                    .choices(response.getChoices())
+                    .messages(response.getMessages())
                     .usage(response.getUsage())
                     .finishReason(response.getFinishReason())
                     .extraProperties(extra)
@@ -122,7 +109,7 @@ public class ComplexWorkflowExample {
 
     private static void runWorkflow(Workflow workflow, String input) {
         Map<String, Object> context = new HashMap<>();
-        context.put("messages", List.of(Message.user(input)));
+        context.put("messages", List.of(UserMessage.create(input)));
 
         Workflow.Result result = workflow.execute(context);
 
@@ -132,7 +119,7 @@ public class ComplexWorkflowExample {
             List<Message> messages = result.getMessages();
             if (messages != null && !messages.isEmpty()) {
                 Message last = messages.get(messages.size() - 1);
-                System.out.println("Final Answer (" + last.getRole() + "): " + last.getText());
+                System.out.println("Final Answer (" + last.getRoleAsString() + "): " + last.getTextContent());
             }
         } else {
             System.out.println("Workflow failed: " + result.getError());

@@ -7,8 +7,11 @@ import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Content;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.block.Block;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +29,7 @@ public class ToolUsageExample {
         WeatherTool weatherTool = new WeatherTool();
 
         // Create a chat client
-        ChatClient client = ClientExample.anthropicChatClient();
+        ChatClient client = ClientExample.openAIChatClient();
 
         // Build an agent with tools using simplified API
         // Note: ToolExecutor is created internally, use getToolExecutor() if needed for manual execution
@@ -45,12 +48,12 @@ public class ToolUsageExample {
 
         // Run the agent with a question that needs a tool
         List<Message> messages = new ArrayList<>();
-        messages.add(Message.user("What's the weather like in Tokyo?"));
+        messages.add(UserMessage.create("What's the weather like in Tokyo?"));
 
         // Use the internal tool executor for manual tool loop
         ToolExecutor executor = agentBuilder.getToolExecutor();
         ChatResponse response = runWithTools(agent, executor, messages, 3);
-        System.out.println("Response: " + response.getMessage().getText());
+        System.out.println("Response: " + response.getMessage().getTextContent());
     }
 
     /**
@@ -100,7 +103,7 @@ public class ToolUsageExample {
                     toolCallId = "tool_" + UUID.randomUUID();
                 }
                 Object result = executor.execute(name, args);
-                messages.add(Message.tool(toolCallId, name, result));
+                messages.add(ResultMessage.create(toolCallId, name, result));
             }
         }
         return response;
@@ -108,15 +111,17 @@ public class ToolUsageExample {
 
     private static List<Map<String, Object>> extractToolCalls(Message message) {
         List<Map<String, Object>> calls = new ArrayList<>();
-        if (message.getContents() == null) {
+        if (message.getBlocks() == null) {
             return calls;
         }
-        for (Content content : message.getContents()) {
-            if (content.getType() == Content.ContentType.FUNCTION_CALL) {
-                Map<String, Object> call = content.getFunctionCall();
-                if (call != null && !call.isEmpty()) {
-                    calls.add(call);
-                }
+        for (Block block : message.getBlocks()) {
+            if (block instanceof ToolUseBlock) {
+                ToolUseBlock toolUse = (ToolUseBlock) block;
+                Map<String, Object> call = new HashMap<>();
+                call.put("id", toolUse.getId());
+                call.put("name", toolUse.getName());
+                call.put("arguments", toolUse.getInput());
+                calls.add(call);
             }
         }
         return calls;

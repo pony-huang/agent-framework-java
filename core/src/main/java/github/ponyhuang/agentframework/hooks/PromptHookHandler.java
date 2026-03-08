@@ -3,8 +3,9 @@ package github.ponyhuang.agentframework.hooks;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
-import github.ponyhuang.agentframework.types.Content;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ public class PromptHookHandler implements HookHandler {
             String fullPrompt = prompt.replace("$ARGUMENTS", contextJson);
 
             // Build messages
-            Message userMessage = Message.user(fullPrompt);
+            Message userMessage = UserMessage.create(fullPrompt);
             List<Message> messages = List.of(userMessage);
 
             // Execute chat request
@@ -75,12 +76,12 @@ public class PromptHookHandler implements HookHandler {
 
         Message msg = response.getMessage();
         if (msg != null) {
-            List<Content> contents = msg.getContents();
-            if (contents != null && !contents.isEmpty()) {
+            List<github.ponyhuang.agentframework.types.block.Block> blocks = msg.getBlocks();
+            if (blocks != null && !blocks.isEmpty()) {
                 // Return the text content
-                for (Content content : contents) {
-                    if (content.getType() == Content.ContentType.TEXT) {
-                        return content.getText();
+                for (github.ponyhuang.agentframework.types.block.Block block : blocks) {
+                    if (block instanceof TextBlock) {
+                        return ((TextBlock) block).getText();
                     }
                 }
             }

@@ -3,7 +3,7 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.providers.AnthropicChatClient;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -19,7 +19,7 @@ public class AsyncChatStreamExample {
         AnthropicChatClient client = ClientExample.anthropicChatClient();
 
         ChatCompleteParams params = ChatCompleteParams.builder()
-                .messages(List.of(Message.user("Explain machine learning in one short paragraph.")))
+                .messages(List.of(UserMessage.create("Explain machine learning in one short paragraph.")))
                 .build();
 
         Flux<ChatResponse> stream = client.chatStream(params);
@@ -32,7 +32,7 @@ public class AsyncChatStreamExample {
                     if (chunk == null || chunk.getMessage() == null) {
                         return;
                     }
-                    String text = chunk.getMessage().getText();
+                    String text = chunk.getMessage().getTextContent();
                     if (text != null && !text.isBlank()) {
                         System.out.print(text);
                         buffer.append(text);

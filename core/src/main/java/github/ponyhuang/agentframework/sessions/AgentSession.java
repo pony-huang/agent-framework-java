@@ -2,7 +2,8 @@ package github.ponyhuang.agentframework.sessions;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
@@ -70,7 +71,7 @@ public interface AgentSession {
      * @return the agent response
      */
     default ChatResponse run(String userMessage) {
-        return run(Message.user(userMessage));
+        return run(UserMessage.create(userMessage));
     }
 
     /**
@@ -109,7 +110,7 @@ public interface AgentSession {
      * @return flux of response updates
      */
     default Flux<ChatResponse> runStream(String userMessage) {
-        return runStream(Message.user(userMessage));
+        return runStream(UserMessage.create(userMessage));
     }
 
     /**

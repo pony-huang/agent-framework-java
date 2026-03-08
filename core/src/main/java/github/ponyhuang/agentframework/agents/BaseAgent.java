@@ -9,7 +9,8 @@ import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.SystemMessage;
 import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,7 +160,7 @@ public abstract class BaseAgent implements Agent {
 
         // Add instructions as system message if present
         if (instructions != null && !instructions.isEmpty()) {
-            prepared.add(Message.system(instructions));
+            prepared.add(SystemMessage.create(instructions));
         }
 
         // Add user messages
@@ -233,9 +234,14 @@ public abstract class BaseAgent implements Agent {
             stopContext.setStopHookActive(false);
             if (response != null && response.getMessage() != null) {
                 StringBuilder sb = new StringBuilder();
-                response.getMessage().getContents().forEach(c -> {
-                    if (c.getText() != null) sb.append(c.getText());
-                });
+                github.ponyhuang.agentframework.types.message.Message msg = response.getMessage();
+                if (msg.getBlocks() != null) {
+                    msg.getBlocks().forEach(b -> {
+                        if (b instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
+                            sb.append(((github.ponyhuang.agentframework.types.block.TextBlock) b).getText());
+                        }
+                    });
+                }
                 stopContext.setLastAssistantMessage(sb.toString());
             }
             HookResult result = hookExecutor.executeStop(stopContext);

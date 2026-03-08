@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.sessions;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +53,7 @@ public class InMemoryAgentSession implements AgentSession {
     public void addMessage(Message message) {
         if (message != null) {
             messages.add(message);
-            LOG.debug("Message added to session, role: {}", message.getRole());
+            LOG.debug("Message added to session, role: {}", message.getRoleAsString());
         }
     }
 

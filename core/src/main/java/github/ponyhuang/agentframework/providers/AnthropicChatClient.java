@@ -5,7 +5,14 @@ import com.anthropic.core.http.StreamResponse;
 import com.anthropic.models.messages.*;
 import github.ponyhuang.agentframework.clients.DefaultChatClient;
 import github.ponyhuang.agentframework.types.*;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
+import github.ponyhuang.agentframework.types.block.ToolResultBlock;
+import github.ponyhuang.agentframework.types.Role;
 import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,81 +118,74 @@ public class AnthropicChatClient extends DefaultChatClient {
     }
 
     private MessageParam toAnthropicMessage(Message message) {
-        if (message == null || message.getRole() == null) {
+        if (message == null || message.getRoleAsString() == null) {
             return null;
         }
 
-        switch (message.getRole()) {
-            case USER -> {
-                return MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content(message.getText())
-                        .build();
-            }
-            case ASSISTANT -> {
-                List<ContentBlockParam> blocks = buildAssistantContentBlocks(message);
-                if (!blocks.isEmpty()) {
-                    return MessageParam.builder()
-                            .role(MessageParam.Role.ASSISTANT)
-                            .contentOfBlockParams(blocks)
-                            .build();
-                }
+        String role = message.getRoleAsString();
+        
+        if (role.equals("user") || role.equals("USER")) {
+            return MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .content(message.getTextContent())
+                    .build();
+        } else if (role.equals("assistant") || role.equals("ASSISTANT")) {
+            List<ContentBlockParam> blocks = buildAssistantContentBlocks(message);
+            if (!blocks.isEmpty()) {
                 return MessageParam.builder()
                         .role(MessageParam.Role.ASSISTANT)
-                        .content(message.getText())
+                        .contentOfBlockParams(blocks)
                         .build();
             }
-            case TOOL -> {
-                ToolResultBlockParam toolResult = ToolResultBlockParam.builder()
-                        .toolUseId(resolveToolCallId(message))
-                        .content(extractToolResultText(message))
-                        .build();
-                return MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .contentOfBlockParams(List.of(ContentBlockParam.ofToolResult(toolResult)))
-                        .build();
-            }
-            default -> {
-                return null;
-            }
+            return MessageParam.builder()
+                    .role(MessageParam.Role.ASSISTANT)
+                    .content(message.getTextContent())
+                    .build();
+        } else if (role.equals("tool") || role.equals("TOOL")) {
+            ToolResultBlockParam toolResult = ToolResultBlockParam.builder()
+                    .toolUseId(resolveToolCallId(message))
+                    .content(extractToolResultText(message))
+                    .build();
+            return MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .contentOfBlockParams(List.of(ContentBlockParam.ofToolResult(toolResult)))
+                    .build();
         }
+        
+        return null;
     }
 
     private List<ContentBlockParam> buildAssistantContentBlocks(Message message) {
-        if (message.getContents() == null || message.getContents().isEmpty()) {
+        if (message.getBlocks() == null || message.getBlocks().isEmpty()) {
             return List.of();
         }
         List<ContentBlockParam> blocks = new ArrayList<>();
-        for (Content content : message.getContents()) {
-            if (content == null || content.getType() == null) {
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block == null) {
                 continue;
             }
-            if (content.getType() == Content.ContentType.TEXT) {
-                String text = content.getText();
+            if (block instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
+                String text = ((github.ponyhuang.agentframework.types.block.TextBlock) block).getText();
                 if (text != null && !text.isBlank()) {
                     blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(text).build()));
                 }
                 continue;
             }
-            if (content.getType() == Content.ContentType.FUNCTION_CALL) {
-                Map<String, Object> call = content.getFunctionCall();
-                if (call == null || call.isEmpty()) {
+            if (block instanceof github.ponyhuang.agentframework.types.block.ToolUseBlock) {
+                github.ponyhuang.agentframework.types.block.ToolUseBlock toolUseBlock = 
+                        (github.ponyhuang.agentframework.types.block.ToolUseBlock) block;
+                String name = toolUseBlock.getName();
+                String id = toolUseBlock.getId();
+                Map<String, Object> args = toolUseBlock.getInput();
+                
+                if (name == null || name.isBlank()) {
                     continue;
                 }
-                String name = asNonBlankString(call.get("name")).orElse(null);
-                if (name == null) {
-                    continue;
+                
+                if (id == null || id.isBlank()) {
+                    id = "tool_" + UUID.randomUUID();
                 }
-                String id = asNonBlankString(call.get("id")).orElseGet(() -> {
-                    String generated = "tool_" + UUID.randomUUID();
-                    call.put("id", generated);
-                    return generated;
-                });
 
-                @SuppressWarnings("unchecked")
-                Map<String, Object> args = call.get("arguments") instanceof Map<?, ?>
-                        ? (Map<String, Object>) call.get("arguments")
-                        : null;
                 ToolUseBlockParam.Input.Builder inputBuilder = ToolUseBlockParam.Input.builder();
                 if (args != null) {
                     for (Map.Entry<String, Object> entry : args.entrySet()) {
@@ -262,10 +262,7 @@ public class AnthropicChatClient extends DefaultChatClient {
 
     private ChatResponse toChatResponse(com.anthropic.models.messages.Message message) {
         Message assistantMessage = toAgentMessage(message);
-        ChatResponse.Choice choice = new ChatResponse.Choice(
-                0,
-                assistantMessage,
-                message.stopReason().map(com.anthropic.models.messages.StopReason::asString).orElse(null));
+        String finishReason = message.stopReason().map(com.anthropic.models.messages.StopReason::asString).orElse(null);
 
         int promptTokens = Math.toIntExact(message.usage().inputTokens());
         int completionTokens = Math.toIntExact(message.usage().outputTokens());
@@ -278,9 +275,9 @@ public class AnthropicChatClient extends DefaultChatClient {
                 .id(message.id())
                 .created(Instant.now().getEpochSecond())
                 .model(message.model().asString())
-                .choices(List.of(choice))
+                .messages(List.of(assistantMessage))
                 .usage(usage)
-                .finishReason(choice.getFinishReason())
+                .finishReason(finishReason)
                 .build();
     }
 
@@ -295,14 +292,10 @@ public class AnthropicChatClient extends DefaultChatClient {
             if (text == null || text.isBlank()) {
                 return null;
             }
-            Message chunkMessage = Message.builder()
-                    .role(Role.ASSISTANT)
-                    .addContent(Content.text(text))
-                    .build();
-            ChatResponse.Choice choice = new ChatResponse.Choice(0, chunkMessage, null);
+            Message chunkMessage = AssistantMessage.create(text);
             return ChatResponse.builder()
                     .created(Instant.now().getEpochSecond())
-                    .choices(List.of(choice))
+                    .messages(List.of(chunkMessage))
                     .build();
         }
 
@@ -313,13 +306,10 @@ public class AnthropicChatClient extends DefaultChatClient {
                     .orElse(null);
             int completionTokens = Math.toIntExact(deltaEvent.usage().outputTokens());
             ChatResponse.Usage usage = new ChatResponse.Usage(0, completionTokens, completionTokens);
-            ChatResponse.Choice choice = new ChatResponse.Choice(
-                    0,
-                    Message.builder().role(Role.ASSISTANT).build(),
-                    finishReason);
+            Message assistantMessage = AssistantMessage.create();
             return ChatResponse.builder()
                     .created(Instant.now().getEpochSecond())
-                    .choices(List.of(choice))
+                    .messages(List.of(assistantMessage))
                     .usage(usage)
                     .finishReason(finishReason)
                     .build();
@@ -329,22 +319,21 @@ public class AnthropicChatClient extends DefaultChatClient {
     }
 
     private Message toAgentMessage(com.anthropic.models.messages.Message message) {
-        Message.Builder builder = Message.builder().role(Role.ASSISTANT);
+        List<github.ponyhuang.agentframework.types.block.Block> blocks = new ArrayList<>();
         for (ContentBlock block : message.content()) {
             if (block.isText()) {
                 String text = block.asText().text();
                 if (!text.isBlank()) {
-                    builder.addContent(Content.text(text));
+                    blocks.add(new TextBlock(text));
                 }
             } else if (block.isToolUse()) {
-                Map<String, Object> functionCall = new LinkedHashMap<>();
-                functionCall.put("id", block.asToolUse().id());
-                functionCall.put("name", block.asToolUse().name());
-                functionCall.put("arguments", block.asToolUse()._input().convert(Map.class));
-                builder.addContent(Content.fromFunctionCall(functionCall));
+                String id = block.asToolUse().id();
+                String name = block.asToolUse().name();
+                Map<String, Object> input = block.asToolUse()._input().convert(Map.class);
+                blocks.add(ToolUseBlock.of(id, name, input));
             }
         }
-        return builder.build();
+        return AssistantMessage.fromBlocks(blocks);
     }
 
     private String extractDeltaText(RawContentBlockDeltaEvent deltaEvent) {
@@ -386,33 +375,43 @@ public class AnthropicChatClient extends DefaultChatClient {
     }
 
     private String extractToolResultText(Message message) {
-        if (message.getContents() == null) {
-            return message.getText();
+        if (message.getBlocks() == null) {
+            return message.getTextContent();
         }
-        for (Content content : message.getContents()) {
-            if (content.getType() == Content.ContentType.FUNCTION_RESULT) {
-                Map<String, Object> functionResult = content.getFunctionResult();
-                if (functionResult == null || functionResult.isEmpty()) {
-                    return "";
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof github.ponyhuang.agentframework.types.block.ToolResultBlock) {
+                github.ponyhuang.agentframework.types.block.ToolResultBlock toolResultBlock = 
+                        (github.ponyhuang.agentframework.types.block.ToolResultBlock) block;
+                String content = toolResultBlock.getContent();
+                if (content != null && !content.isEmpty()) {
+                    return content;
                 }
-                Object result = functionResult.getOrDefault("result", functionResult);
-                return toJsonString(result);
             }
-            if (content.getType() == Content.ContentType.TEXT && content.getText() != null) {
-                return content.getText();
+            if (block instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
+                github.ponyhuang.agentframework.types.block.TextBlock textBlock = 
+                        (github.ponyhuang.agentframework.types.block.TextBlock) block;
+                String text = textBlock.getText();
+                if (text != null && !text.isEmpty()) {
+                    return text;
+                }
             }
         }
-        return message.getText();
+        return message.getTextContent();
     }
 
     private String resolveToolCallId(Message message) {
         if (message.getToolCallId() != null && !message.getToolCallId().isBlank()) {
             return message.getToolCallId();
         }
-        if (message.getContents() != null) {
-            for (Content content : message.getContents()) {
-                if (content.getToolCallId() != null && !content.getToolCallId().isBlank()) {
-                    return content.getToolCallId();
+        if (message.getBlocks() != null) {
+            for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+                if (block instanceof github.ponyhuang.agentframework.types.block.ToolResultBlock) {
+                    github.ponyhuang.agentframework.types.block.ToolResultBlock toolResultBlock = 
+                            (github.ponyhuang.agentframework.types.block.ToolResultBlock) block;
+                    String toolUseId = toolResultBlock.getToolUseId();
+                    if (toolUseId != null && !toolUseId.isBlank()) {
+                        return toolUseId;
+                    }
                 }
             }
         }

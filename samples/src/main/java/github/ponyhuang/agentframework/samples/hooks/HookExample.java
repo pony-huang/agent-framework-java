@@ -6,7 +6,7 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.hooks.*;
 import github.ponyhuang.agentframework.hooks.events.*;
 import github.ponyhuang.agentframework.providers.AnthropicChatClient;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 
 /**
  * Example demonstrating how to use hooks in the agent framework.

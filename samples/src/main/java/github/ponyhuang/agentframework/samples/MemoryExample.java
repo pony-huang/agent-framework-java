@@ -6,8 +6,9 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
-import github.ponyhuang.agentframework.types.Role;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.SystemMessage;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,17 +21,17 @@ public class MemoryExample {
 
     // <context_provider>
     static class UserMemoryProvider implements ContextProvider {
-        
+
         @Override
         public List<Message> beforeRun(Object agent, AgentSession session, List<Message> messages, Map<String, Object> options) {
             String userName = (String) session.getMetadata("user_name");
             List<Message> newMessages = new ArrayList<>(messages);
-            
+
             if (userName != null) {
                 // Inject knowledge about the user
-                newMessages.add(0, Message.system("The user's name is " + userName + ". Always address them by name."));
+                newMessages.add(0, SystemMessage.create("The user's name is " + userName + ". Always address them by name."));
             } else {
-                newMessages.add(0, Message.system("You don't know the user's name yet. Ask for it politely."));
+                newMessages.add(0, SystemMessage.create("You don't know the user's name yet. Ask for it politely."));
             }
             return newMessages;
         }
@@ -41,8 +42,8 @@ public class MemoryExample {
             // We iterate backwards to find the latest user message
             for (int i = messages.size() - 1; i >= 0; i--) {
                 Message msg = messages.get(i);
-                if (msg.getRole() == Role.USER) {
-                    String text = msg.getText();
+                if ("user".equalsIgnoreCase(msg.getRoleAsString())) {
+                    String text = msg.getTextContent();
                     if (text != null && text.toLowerCase().contains("my name is")) {
                         String[] parts = text.toLowerCase().split("my name is");
                         if (parts.length > 1) {
@@ -97,9 +98,9 @@ public class MemoryExample {
 
     private static void runTurn(AgentSession session, String input) {
         System.out.println("User: " + input);
-        ChatResponse response = session.run(Message.user(input));
+        ChatResponse response = session.run(UserMessage.create(input));
         if (response.getMessage() != null) {
-             System.out.println("Agent: " + response.getMessage().getText() + "\n");
+             System.out.println("Agent: " + response.getMessage().getTextContent() + "\n");
         } else {
              System.out.println("Agent: [No response text]\n");
         }

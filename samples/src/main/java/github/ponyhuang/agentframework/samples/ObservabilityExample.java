@@ -4,7 +4,8 @@ import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.observability.TracingMiddleware;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
@@ -38,7 +39,7 @@ public class ObservabilityExample {
         
         // 3. Run Agent
         // Spans will be logged to console by LoggingSpanExporter
-        agent.run(List.of(Message.user("Hello, tell me a joke about observability.")));
+        agent.run(List.of(UserMessage.create("Hello, tell me a joke about observability.")));
         
         System.out.println("Agent run completed. Check logs for traces.");
     }

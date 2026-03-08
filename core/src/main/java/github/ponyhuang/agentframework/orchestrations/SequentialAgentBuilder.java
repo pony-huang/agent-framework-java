@@ -2,7 +2,9 @@ package github.ponyhuang.agentframework.orchestrations;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,12 +52,12 @@ public class SequentialAgentBuilder {
         ChatResponse lastResponse = null;
 
         for (Agent agent : agents) {
-            Message userMessage = Message.user(currentInput);
+            Message userMessage = UserMessage.create(currentInput);
             lastResponse = agent.run(List.of(userMessage));
 
             // Transform output for next agent
             String output = lastResponse.getMessage() != null
-                    ? lastResponse.getMessage().getText()
+                    ? getMessageText(lastResponse.getMessage())
                     : "";
             currentInput = outputTransformer.apply(output);
         }
@@ -89,8 +91,19 @@ public class SequentialAgentBuilder {
         if (messages.isEmpty()) return null;
         Message lastMessage = messages.get(messages.size() - 1);
         return ChatResponse.builder()
-                .choices(List.of(new ChatResponse.Choice(0, lastMessage, "stop")))
+                .messages(List.of(lastMessage))
                 .build();
+    }
+
+    private String getMessageText(Message message) {
+        if (message == null || message.getBlocks() == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof TextBlock) {
+                sb.append(((TextBlock) block).getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     /**

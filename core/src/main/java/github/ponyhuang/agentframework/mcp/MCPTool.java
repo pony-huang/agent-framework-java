@@ -4,8 +4,10 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.tools.FunctionTool;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Content;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 import github.ponyhuang.agentframework.types.Role;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -576,7 +578,7 @@ public abstract class MCPTool {
 
         ChatResponse response = chatClient.chat(paramsBuilder.build());
         String responseText = response != null && response.getMessage() != null
-                ? response.getMessage().getText()
+                ? getMessageText(response.getMessage())
                 : "";
         McpSchema.Content content = new McpSchema.TextContent(responseText);
         String responseModel = response != null ? response.getModel() : model;
@@ -592,12 +594,33 @@ public abstract class MCPTool {
         if (message == null || message.content() == null) {
             return null;
         }
-        Role role = message.role() == McpSchema.Role.USER ? Role.USER : Role.ASSISTANT;
-        Content content = MCPContentParser.parse(message.content());
-        return Message.builder()
-                .role(role)
-                .addContent(content)
-                .build();
+        String text = getTextContent(message.content());
+        if ("user".equalsIgnoreCase(String.valueOf(message.role()))) {
+            return UserMessage.create(text);
+        } else {
+            return AssistantMessage.create(text);
+        }
+    }
+
+    private String getTextContent(Object content) {
+        if (content instanceof McpSchema.TextContent) {
+            return ((McpSchema.TextContent) content).text();
+        }
+        if (content instanceof McpSchema.ImageContent) {
+            return "[Image content]";
+        }
+        return String.valueOf(content);
+    }
+
+    private String getMessageText(Message message) {
+        if (message.getBlocks() == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof TextBlock) {
+                sb.append(((TextBlock) block).getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     protected McpSchema.CreateMessageResult.StopReason mapStopReason(String finishReason) {

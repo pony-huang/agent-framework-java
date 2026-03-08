@@ -12,7 +12,7 @@ import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.tools.FunctionTool;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;

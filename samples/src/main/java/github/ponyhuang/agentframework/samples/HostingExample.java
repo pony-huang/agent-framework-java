@@ -5,7 +5,8 @@ import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -97,8 +98,8 @@ public class HostingExample {
 
             // Execute Agent
             AgentSession session = getSession(sessionId);
-            ChatResponse response = session.run(Message.user(body));
-            String responseText = response.getMessage().getText();
+            ChatResponse response = session.run(UserMessage.create(body));
+            String responseText = response.getMessage().getTextContent();
             
             System.out.println("[" + sessionId + "] Agent: " + responseText);
 
@@ -139,9 +140,9 @@ public class HostingExample {
 
             try (OutputStream os = exchange.getResponseBody()) {
                 // Subscribe to Flux and write to output stream
-                session.runStream(Message.user(body))
+                session.runStream(UserMessage.create(body))
                         .doOnNext(response -> {
-                            String text = response.getMessage().getText(); // This might be partial text
+                            String text = response.getMessage().getTextContent(); // This might be partial text
                             // Note: In real streaming, ChatResponse should return delta. 
                             // Assuming ChatClient implementation returns deltas for streaming.
                             if (text != null && !text.isEmpty()) {

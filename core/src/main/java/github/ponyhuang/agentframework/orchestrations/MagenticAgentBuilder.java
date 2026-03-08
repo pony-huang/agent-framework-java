@@ -2,7 +2,9 @@ package github.ponyhuang.agentframework.orchestrations;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -65,7 +67,7 @@ public class MagenticAgentBuilder {
         }
 
         List<Message> conversation = new ArrayList<>();
-        conversation.add(Message.user(task));
+        conversation.add(UserMessage.create(task));
 
         String lastSpecialistResult = null;
 
@@ -80,7 +82,7 @@ public class MagenticAgentBuilder {
             conversation.add(orchestratorResponse.getMessage());
 
             // Check if orchestrator is calling a specialist
-            String responseText = orchestratorResponse.getMessage().getText();
+            String responseText = getMessageText(orchestratorResponse.getMessage());
 
             // Look for specialist call in response
             String specialistName = extractSpecialistCall(responseText);
@@ -90,11 +92,11 @@ public class MagenticAgentBuilder {
                     // Execute specialist
                     String specialistTask = extractSpecialistTask(responseText);
                     ChatResponse specialistResponse = specialist.run(
-                            List.of(Message.user(specialistTask != null ? specialistTask : ""))
+                            List.of(UserMessage.create(specialistTask != null ? specialistTask : ""))
                     );
 
                     if (specialistResponse.getMessage() != null) {
-                        lastSpecialistResult = specialistResponse.getMessage().getText();
+                        lastSpecialistResult = getMessageText(specialistResponse.getMessage());
                         conversation.add(specialistResponse.getMessage());
                     }
                 }
@@ -140,8 +142,19 @@ public class MagenticAgentBuilder {
 
     private ChatResponse createResponseFromMessage(Message message) {
         return ChatResponse.builder()
-                .choices(List.of(new ChatResponse.Choice(0, message, "stop")))
+                .messages(List.of(message))
                 .build();
+    }
+
+    private String getMessageText(Message message) {
+        if (message == null || message.getBlocks() == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof TextBlock) {
+                sb.append(((TextBlock) block).getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     /**
@@ -159,11 +172,11 @@ public class MagenticAgentBuilder {
                     }
 
                     ChatResponse response = specialist.run(
-                            List.of(Message.user(entry.getValue()))
+                            List.of(UserMessage.create(entry.getValue()))
                     );
 
                     String result = response.getMessage() != null
-                            ? response.getMessage().getText()
+                            ? getMessageText(response.getMessage())
                             : "No response";
                     return Map.entry(entry.getKey(), result);
                 }))

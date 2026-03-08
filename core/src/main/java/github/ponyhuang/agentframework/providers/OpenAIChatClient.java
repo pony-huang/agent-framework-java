@@ -3,8 +3,13 @@ package github.ponyhuang.agentframework.providers;
 import github.ponyhuang.agentframework.clients.DefaultChatClient;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Content;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
+import github.ponyhuang.agentframework.types.block.ToolResultBlock;
 import github.ponyhuang.agentframework.types.Role;
 import com.openai.core.JsonValue;
 import com.openai.core.http.StreamResponse;
@@ -135,33 +140,35 @@ public class OpenAIChatClient extends DefaultChatClient {
     }
 
     private ChatCompletionMessageParam toOpenAIMessage(Message message) {
-        if (message == null || message.getRole() == null) {
+        if (message == null || message.getRoleAsString() == null) {
             return null;
         }
 
-        switch (message.getRole()) {
-            case SYSTEM -> {
-                return ChatCompletionMessageParam.ofSystem(
-                        ChatCompletionSystemMessageParam.builder()
-                                .content(message.getText())
-                                .build());
+        String role = message.getRoleAsString();
+        
+        if (role.equals("system") || role.equals("SYSTEM")) {
+            return ChatCompletionMessageParam.ofSystem(
+                    ChatCompletionSystemMessageParam.builder()
+                            .content(message.getTextContent())
+                            .build());
+        } else if (role.equals("user") || role.equals("USER")) {
+            return ChatCompletionMessageParam.ofUser(
+                    ChatCompletionUserMessageParam.builder()
+                            .content(message.getTextContent())
+                            .build());
+        } else if (role.equals("assistant") || role.equals("ASSISTANT")) {
+            com.openai.models.chat.completions.ChatCompletionAssistantMessageParam.Builder assistantBuilder =
+                    com.openai.models.chat.completions.ChatCompletionAssistantMessageParam.builder();
+            if (message.getTextContent() != null && !message.getTextContent().isBlank()) {
+                assistantBuilder.content(message.getTextContent());
             }
-            case USER -> {
-                return ChatCompletionMessageParam.ofUser(
-                        ChatCompletionUserMessageParam.builder()
-                                .content(message.getText())
-                                .build());
-            }
-            case ASSISTANT -> {
-                com.openai.models.chat.completions.ChatCompletionAssistantMessageParam.Builder assistantBuilder =
-                        com.openai.models.chat.completions.ChatCompletionAssistantMessageParam.builder();
-                if (!message.getText().isBlank()) {
-                    assistantBuilder.content(message.getText());
-                }
-                boolean hasToolCall = false;
-                Map<String, Object> functionCall = message.getFunctionCall();
-                if (functionCall != null) {
+            boolean hasToolCall = false;
+            
+            if (message instanceof AssistantMessage) {
+                AssistantMessage assistantMsg = (AssistantMessage) message;
+                if (assistantMsg.hasFunctionCall()) {
                     hasToolCall = true;
+                    Map<String, Object> functionCall = assistantMsg.getFunctionCall();
                     ChatCompletionMessageFunctionToolCall.Function function =
                             ChatCompletionMessageFunctionToolCall.Function.builder()
                                     .name(asNonBlankString(functionCall.get("name")).orElse("tool"))
@@ -174,26 +181,25 @@ public class OpenAIChatClient extends DefaultChatClient {
                                     .function(function)
                                     .build());
                 }
-                if (hasToolCall) {
-                    assistantBuilder.putAdditionalProperty("reasoning_content", JsonValue.from(""));
-                }
-                return ChatCompletionMessageParam.ofAssistant(assistantBuilder.build());
             }
-            case TOOL -> {
-                String toolCallId = resolveToolCallId(message);
-                if (toolCallId == null || toolCallId.isBlank()) {
-                    toolCallId = "tool_" + UUID.randomUUID();
-                }
-                return ChatCompletionMessageParam.ofTool(
-                        ChatCompletionToolMessageParam.builder()
-                                .toolCallId(toolCallId)
-                                .content(extractToolResultText(message))
-                                .build());
+            
+            if (hasToolCall) {
+                assistantBuilder.putAdditionalProperty("reasoning_content", JsonValue.from(""));
             }
-            default -> {
-                return null;
+            return ChatCompletionMessageParam.ofAssistant(assistantBuilder.build());
+        } else if (role.equals("tool") || role.equals("TOOL")) {
+            String toolCallId = resolveToolCallId(message);
+            if (toolCallId == null || toolCallId.isBlank()) {
+                toolCallId = "tool_" + UUID.randomUUID();
             }
+            return ChatCompletionMessageParam.ofTool(
+                    ChatCompletionToolMessageParam.builder()
+                            .toolCallId(toolCallId)
+                            .content(extractToolResultText(message))
+                            .build());
         }
+        
+        return null;
     }
 
     private ChatCompletionFunctionTool toOpenAIFunctionTool(Map<String, Object> tool) {
@@ -220,11 +226,12 @@ public class OpenAIChatClient extends DefaultChatClient {
     }
 
     private ChatResponse toChatResponse(ChatCompletion completion) {
-        List<ChatResponse.Choice> choices = new ArrayList<>();
+        List<Message> messages = new ArrayList<>();
+        String finishReason = null;
         for (ChatCompletion.Choice choice : completion.choices()) {
             Message message = toAgentMessage(choice.message());
-            String finishReason = choice.finishReason().asString();
-            choices.add(new ChatResponse.Choice(Math.toIntExact(choice.index()), message, finishReason));
+            messages.add(message);
+            finishReason = choice.finishReason().asString();
         }
 
         ChatResponse.Usage usage = completion.usage()
@@ -238,18 +245,19 @@ public class OpenAIChatClient extends DefaultChatClient {
                 .id(completion.id())
                 .created(completion.created())
                 .model(completion.model())
-                .choices(choices)
+                .messages(messages)
                 .usage(usage)
-                .finishReason(choices.isEmpty() ? null : choices.get(0).getFinishReason())
+                .finishReason(finishReason)
                 .build();
     }
 
     private ChatResponse toChatResponse(ChatCompletionChunk chunk) {
-        List<ChatResponse.Choice> choices = new ArrayList<>();
+        List<Message> messages = new ArrayList<>();
+        String finishReason = null;
         for (ChatCompletionChunk.Choice choice : chunk.choices()) {
             Message message = toAgentMessage(choice.delta());
-            String finishReason = choice.finishReason().map(ChatCompletionChunk.Choice.FinishReason::asString).orElse(null);
-            choices.add(new ChatResponse.Choice(Math.toIntExact(choice.index()), message, finishReason));
+            messages.add(message);
+            finishReason = choice.finishReason().map(ChatCompletionChunk.Choice.FinishReason::asString).orElse(null);
         }
 
         ChatResponse.Usage usage = chunk.usage()
@@ -259,56 +267,49 @@ public class OpenAIChatClient extends DefaultChatClient {
                         Math.toIntExact(u.totalTokens())))
                 .orElse(null);
 
-        String finishReason = null;
-        for (ChatResponse.Choice choice : choices) {
-            if (choice.getFinishReason() != null) {
-                finishReason = choice.getFinishReason();
-                break;
-            }
-        }
-
         return ChatResponse.builder()
                 .id(chunk.id())
                 .created(chunk.created())
                 .model(chunk.model())
-                .choices(choices)
+                .messages(messages)
                 .usage(usage)
                 .finishReason(finishReason)
                 .build();
     }
 
     private Message toAgentMessage(ChatCompletionMessage message) {
-        Message.Builder builder = Message.builder().role(Role.ASSISTANT);
-        final boolean[] hasText = {false};
+        List<github.ponyhuang.agentframework.types.block.Block> blocks = new ArrayList<>();
+        
         message.content().ifPresent(text -> {
             if (!text.isBlank()) {
-                builder.addContent(Content.text(text));
-                hasText[0] = true;
+                blocks.add(new TextBlock(text));
             }
         });
-        if (!hasText[0]) {
-            String reasoning = extractReasoningContent(message._additionalProperties());
-            if (reasoning != null && !reasoning.isBlank()) {
-                builder.addContent(Content.text(reasoning));
-            }
+        
+        String reasoning = extractReasoningContent(message._additionalProperties());
+        if ((blocks.isEmpty() || blocks.stream().noneMatch(b -> b instanceof TextBlock)) 
+                && reasoning != null && !reasoning.isBlank()) {
+            blocks.add(new TextBlock(reasoning));
         }
-        appendToolCalls(builder, message.toolCalls());
+        
+        appendToolCalls(blocks, message.toolCalls());
+        
         message.functionCall().ifPresent(functionCall -> {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("name", functionCall.name());
             payload.put("arguments", parseJsonObject(functionCall.arguments()));
-            builder.addContent(Content.fromFunctionCall(payload));
+            blocks.add(ToolUseBlock.of("temp", functionCall.name(), (Map<String, Object>) parseJsonObject(functionCall.arguments())));
         });
-        return builder.build();
+        
+        return AssistantMessage.fromBlocks(blocks);
     }
 
     private Message toAgentMessage(ChatCompletionChunk.Choice.Delta delta) {
-        Message.Builder builder = Message.builder()
-                .role(delta.role().map(role -> toAgentRole(role.asString())).orElse(Role.ASSISTANT));
-
+        List<github.ponyhuang.agentframework.types.block.Block> blocks = new ArrayList<>();
+        
         delta.content().ifPresent(text -> {
             if (!text.isBlank()) {
-                builder.addContent(Content.text(text));
+                blocks.add(new TextBlock(text));
             }
         });
 
@@ -321,7 +322,11 @@ public class OpenAIChatClient extends DefaultChatClient {
                     fn.arguments().ifPresent(args -> payload.put("arguments", parseJsonObject(args)));
                 });
                 if (!payload.isEmpty()) {
-                    builder.addContent(Content.fromFunctionCall(payload));
+                    String id = (String) payload.getOrDefault("id", "tool_" + UUID.randomUUID());
+                    String name = (String) payload.get("name");
+                    Object args = payload.get("arguments");
+                    Map<String, Object> argsMap = args instanceof Map ? (Map<String, Object>) args : Map.of("arguments", args);
+                    blocks.add(ToolUseBlock.of(id, name, argsMap));
                 }
             }
         }
@@ -330,24 +335,26 @@ public class OpenAIChatClient extends DefaultChatClient {
             Map<String, Object> payload = new LinkedHashMap<>();
             functionCall.name().ifPresent(name -> payload.put("name", name));
             functionCall.arguments().ifPresent(args -> payload.put("arguments", parseJsonObject(args)));
-            builder.addContent(Content.fromFunctionCall(payload));
+            String name = (String) payload.getOrDefault("name", "function");
+            Object args = payload.get("arguments");
+            Map<String, Object> argsMap = args instanceof Map ? (Map<String, Object>) args : Map.of("arguments", args);
+            blocks.add(ToolUseBlock.of("temp", name, argsMap));
         });
 
-        return builder.build();
+        return AssistantMessage.fromBlocks(blocks);
     }
 
-    private void appendToolCalls(Message.Builder builder, Optional<List<com.openai.models.chat.completions.ChatCompletionMessageToolCall>> toolCalls) {
+    private void appendToolCalls(List<github.ponyhuang.agentframework.types.block.Block> blocks, Optional<List<com.openai.models.chat.completions.ChatCompletionMessageToolCall>> toolCalls) {
         if (toolCalls.isEmpty()) {
             return;
         }
         for (com.openai.models.chat.completions.ChatCompletionMessageToolCall toolCall : toolCalls.get()) {
             if (toolCall.isFunction()) {
                 ChatCompletionMessageFunctionToolCall functionToolCall = toolCall.asFunction();
-                Map<String, Object> payload = new LinkedHashMap<>();
-                payload.put("id", functionToolCall.id());
-                payload.put("name", functionToolCall.function().name());
-                payload.put("arguments", parseJsonObject(functionToolCall.function().arguments()));
-                builder.addContent(Content.fromFunctionCall(payload));
+                String id = functionToolCall.id();
+                String name = functionToolCall.function().name();
+                Map<String, Object> argsMap = (Map<String, Object>) parseJsonObject(functionToolCall.function().arguments());
+                blocks.add(ToolUseBlock.of(id, name, argsMap));
             }
         }
     }
@@ -378,7 +385,7 @@ public class OpenAIChatClient extends DefaultChatClient {
             return false;
         }
         for (Message message : params.getMessages()) {
-            if (message != null && message.getRole() == Role.SYSTEM) {
+            if (message != null && "system".equalsIgnoreCase(message.getRoleAsString())) {
                 return true;
             }
         }
@@ -406,33 +413,39 @@ public class OpenAIChatClient extends DefaultChatClient {
     }
 
     private String extractToolResultText(Message message) {
-        if (message.getContents() == null) {
+        if (message.getBlocks() == null) {
             return "";
         }
-        for (Content content : message.getContents()) {
-            if (content.getType() == Content.ContentType.FUNCTION_RESULT) {
-                Map<String, Object> functionResult = content.getFunctionResult();
-                if (functionResult == null || functionResult.isEmpty()) {
+        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+            if (block instanceof ToolResultBlock) {
+                ToolResultBlock resultBlock = (ToolResultBlock) block;
+                Object result = resultBlock.getContent();
+                if (result == null) {
                     return "";
                 }
-                Object result = functionResult.getOrDefault("result", functionResult);
                 return toJsonString(result);
             }
-            if (content.getType() == Content.ContentType.TEXT && content.getText() != null) {
-                return content.getText();
+            if (block instanceof TextBlock) {
+                TextBlock textBlock = (TextBlock) block;
+                if (textBlock.getText() != null) {
+                    return textBlock.getText();
+                }
             }
         }
-        return message.getText();
+        return message.getTextContent() != null ? message.getTextContent() : "";
     }
 
     private String resolveToolCallId(Message message) {
         if (message.getToolCallId() != null && !message.getToolCallId().isBlank()) {
             return message.getToolCallId();
         }
-        if (message.getContents() != null) {
-            for (Content content : message.getContents()) {
-                if (content.getToolCallId() != null && !content.getToolCallId().isBlank()) {
-                    return content.getToolCallId();
+        if (message.getBlocks() != null) {
+            for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+                if (block instanceof ToolResultBlock) {
+                    ToolResultBlock resultBlock = (ToolResultBlock) block;
+                    if (resultBlock.getToolUseId() != null && !resultBlock.getToolUseId().isBlank()) {
+                        return resultBlock.getToolUseId();
+                    }
                 }
             }
         }

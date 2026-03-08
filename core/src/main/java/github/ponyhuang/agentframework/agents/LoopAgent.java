@@ -5,7 +5,10 @@ import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.block.TextBlock;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
@@ -64,15 +67,15 @@ public class LoopAgent extends BaseAgent {
             }
 
             // Handle function calls - ReAct loop
-            Map<String, Object> functionCall = assistantMessage.getFunctionCall();
-            if (functionCall == null) {
+            List<github.ponyhuang.agentframework.types.block.ToolUseBlock> toolCalls = response.getToolCalls();
+            if (toolCalls == null || toolCalls.isEmpty()) {
                 break;
             }
 
-            String functionName = (String) functionCall.get("name");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> functionArgs = (Map<String, Object>) functionCall.get("arguments");
-            String toolCallId = (String) functionCall.get("id");
+            github.ponyhuang.agentframework.types.block.ToolUseBlock toolCall = toolCalls.get(0);
+            String functionName = toolCall.getName();
+            Map<String, Object> functionArgs = toolCall.getInput();
+            String toolCallId = toolCall.getId();
 
             LOG.info("Executing tool: {}", functionName);
 
@@ -97,7 +100,7 @@ public class LoopAgent extends BaseAgent {
 
             // Add tool result message
             String resultStr = toolResult != null ? toolResult.toString() : "null";
-            Message toolMessage = Message.tool(toolCallId, functionName, resultStr);
+            Message toolMessage = ResultMessage.create(toolCallId, resultStr);
             conversationMessages.add(toolMessage);
         }
 
@@ -109,9 +112,7 @@ public class LoopAgent extends BaseAgent {
                         .messages(conversationMessages)
                         .build())
                 : ChatResponse.builder()
-                        .choices(List.of(new ChatResponse.Choice(0,
-                                Message.assistant("Maximum steps reached without task completion."),
-                                "max_tokens")))
+                        .messages(List.of(AssistantMessage.create("Maximum steps reached without task completion.")))
                         .build();
     }
 
