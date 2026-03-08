@@ -8,6 +8,7 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.function.Function;
@@ -67,11 +68,13 @@ public class MiddlewareExample {
                 .build();
 
         System.out.println("--- Test 1: Safe Content ---");
-        ChatResponse response1 = agent.run(List.of(UserMessage.create("Hello, how are you?")));
+        List<Message> messages1 = agent.runStream(List.of(UserMessage.create("Hello, how are you?"))).collectList().block();
+        ChatResponse response1 = ChatResponse.builder().messages(messages1).build();
         System.out.println("Final Response: " + response1.getMessage().getTextContent() + "\n");
 
         System.out.println("--- Test 2: Unsafe Content ---");
-        ChatResponse response2 = agent.run(List.of(UserMessage.create("This is unsafe content.")));
+        List<Message> messages2 = agent.runStream(List.of(UserMessage.create("This is unsafe content."))).collectList().block();
+        ChatResponse response2 = ChatResponse.builder().messages(messages2).build();
         System.out.println("Final Response: " + response2.getMessage().getTextContent() + "\n");
     }
 }

@@ -5,7 +5,7 @@ import github.ponyhuang.agentframework.hooks.HookExecutor;
 import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
-import github.ponyhuang.agentframework.types.ChatResponse;
+import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 
@@ -40,25 +40,6 @@ public interface Agent {
     ChatClient getClient();
 
     /**
-     * Runs the agent with the given input.
-     *
-     * @param messages input messages
-     * @return the agent response
-     */
-    default ChatResponse run(List<Message> messages) {
-        return run(messages, null);
-    }
-
-    /**
-     * Runs the agent with the given input and options.
-     *
-     * @param messages input messages
-     * @param options  additional options
-     * @return the agent response
-     */
-    ChatResponse run(List<Message> messages, Map<String, Object> options);
-
-    /**
      * Runs the agent with streaming.
      *
      * @param messages input messages
@@ -83,6 +64,14 @@ public interface Agent {
      * @return a new session
      */
     AgentSession createSession();
+
+    /**
+     * Creates a new session with options.
+     *
+     * @param options session options
+     * @return a new session
+     */
+    AgentSession createSession(SessionOptions options);
 
     /**
      * Gets all available tool definitions for this agent.

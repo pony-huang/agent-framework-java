@@ -12,6 +12,7 @@ import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -79,7 +80,8 @@ public class ToolUsageExample {
                                              int maxRounds) {
         ChatResponse response = null;
         for (int i = 0; i < maxRounds; i++) {
-            response = agent.run(messages);
+            List<Message> collected = agent.runStream(messages).collectList().block();
+            response = ChatResponse.builder().messages(collected).build();
             Message assistant = response.getMessage();
             if (assistant == null) {
                 break;

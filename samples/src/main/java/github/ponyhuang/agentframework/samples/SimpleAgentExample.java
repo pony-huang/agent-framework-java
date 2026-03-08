@@ -6,6 +6,9 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
+import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 /**
  * Simple example showing basic agent usage.
@@ -24,7 +27,10 @@ public class SimpleAgentExample {
                 .build();
 
         // Run the agent
-        ChatResponse response = agent.run(java.util.List.of(UserMessage.create("Hello, how are you?")));
+        List<Message> messages = agent.runStream(List.of(UserMessage.create("Hello, how are you?"))).collectList().block();
+        ChatResponse response = ChatResponse.builder()
+                .messages(messages)
+                .build();
 
         System.out.println("Response: " + response.getMessage().getTextContent());
     }

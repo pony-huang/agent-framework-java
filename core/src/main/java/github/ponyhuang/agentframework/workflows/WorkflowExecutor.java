@@ -6,6 +6,7 @@ import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -144,7 +145,10 @@ public class WorkflowExecutor {
         List<Message> inputMessages = extractInputMessages(context, node.id());
 
         // Execute agent
-        ChatResponse response = agent.run(inputMessages, context);
+        List<Message> collectedMessages = agent.runStream(inputMessages).collectList().block();
+        ChatResponse response = ChatResponse.builder()
+                .messages(collectedMessages)
+                .build();
         
         // Merge extra properties back to context if present
         if (response.getExtraProperties() != null) {
@@ -216,7 +220,7 @@ public class WorkflowExecutor {
         // Find all outgoing edges from this parallel node
         List<Workflow.Edge> parallelEdges = workflow.edges().stream()
                 .filter(e -> e.sourceId().equals(node.id()))
-                .collect(Collectors.toList());
+                .toList();
 
         // Execute all target nodes in parallel
         List<CompletableFuture<String>> futures = parallelEdges.stream()
@@ -233,7 +237,7 @@ public class WorkflowExecutor {
                     }
                     return null;
                 }))
-                .collect(Collectors.toList());
+                .toList();
 
         // Wait for all to complete
         return futures.stream()

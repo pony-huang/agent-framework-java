@@ -7,6 +7,7 @@ import example.agentframework.codeagent.config.AgentConfig;
 import example.agentframework.codeagent.trajectory.TrajectoryRecorder;
 import github.ponyhuang.agentframework.agents.BaseAgent;
 import github.ponyhuang.agentframework.sessions.AgentSession;
+import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
@@ -49,7 +50,7 @@ public class CodeAgent extends BaseAgent {
     }
 
     @Override
-    protected AgentSession createSession(Map<String, Object> options) {
+    public AgentSession createSession(SessionOptions options) {
         return new CodeAgentSession(this, toolExecutor, trajectoryRecorder, options);
     }
 
@@ -251,22 +252,19 @@ public class CodeAgent extends BaseAgent {
     public ChatResponse newTask(String task, Map<String, Object> extraArgs) {
         StringBuilder userMessage = new StringBuilder();
 
-        // Add project path if available
         if (extraArgs != null && extraArgs.containsKey("project_path")) {
             userMessage.append("Project path: ").append(extraArgs.get("project_path")).append("\n\n");
         }
 
-        // Add issue/task description
         userMessage.append("Task: ").append(task);
 
-        // Add additional context
         if (extraArgs != null && extraArgs.containsKey("issue")) {
             userMessage.append("\n\nIssue description: ").append(extraArgs.get("issue"));
         }
 
-        // Create session and run
-        AgentSession session = createSession(extraArgs);
-        return session.run(UserMessage.create(userMessage.toString()));
+        SessionOptions options = SessionOptions.builder().build();
+        AgentSession session = createSession(options);
+        return session.run(session, UserMessage.create(userMessage.toString()));
     }
 
     /**

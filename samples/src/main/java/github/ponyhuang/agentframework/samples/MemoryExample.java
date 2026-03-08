@@ -4,6 +4,7 @@ import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.sessions.AgentSession;
+import github.ponyhuang.agentframework.sessions.ConversationSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
@@ -23,7 +24,7 @@ public class MemoryExample {
     static class UserMemoryProvider implements ContextProvider {
 
         @Override
-        public List<Message> beforeRun(Object agent, AgentSession session, List<Message> messages, Map<String, Object> options) {
+        public List<Message> beforeRun(Object agent, ConversationSession session, List<Message> messages, Map<String, Object> options) {
             String userName = (String) session.getMetadata("user_name");
             List<Message> newMessages = new ArrayList<>(messages);
 
@@ -37,7 +38,7 @@ public class MemoryExample {
         }
 
         @Override
-        public void afterRun(Object agent, AgentSession session, List<Message> messages, Object response, Map<String, Object> options) {
+        public void afterRun(Object agent, ConversationSession session, List<Message> messages, Object response, Map<String, Object> options) {
             // Check the last user message for name
             // We iterate backwards to find the latest user message
             for (int i = messages.size() - 1; i >= 0; i--) {
@@ -98,7 +99,7 @@ public class MemoryExample {
 
     private static void runTurn(AgentSession session, String input) {
         System.out.println("User: " + input);
-        ChatResponse response = session.run(UserMessage.create(input));
+        ChatResponse response = session.run(session, UserMessage.create(input));
         if (response.getMessage() != null) {
              System.out.println("Agent: " + response.getMessage().getTextContent() + "\n");
         } else {

@@ -2,6 +2,7 @@ package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;
+import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
@@ -33,8 +34,8 @@ public class LoopAgent extends BaseAgent {
     }
 
     @Override
-    protected AgentSession createSession(Map<String, Object> options) {
-        return new InMemoryAgentSession(this);
+    public AgentSession createSession(SessionOptions options) {
+        return new InMemoryAgentSession(this, options);
     }
 
     @Override

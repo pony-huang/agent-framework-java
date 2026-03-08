@@ -21,7 +21,7 @@ public interface ContextProvider {
      * @param options the options
      * @return modified messages to use
      */
-    default List<Message> beforeRun(Object agent, AgentSession session, List<Message> messages, Map<String, Object> options) {
+    default List<Message> beforeRun(Object agent, ConversationSession session, List<Message> messages, Map<String, Object> options) {
         return messages;
     }
 
@@ -35,7 +35,7 @@ public interface ContextProvider {
      * @param response the agent response
      * @param options  the options
      */
-    default void afterRun(Object agent, AgentSession session, List<Message> messages, Object response, Map<String, Object> options) {
+    default void afterRun(Object agent, ConversationSession session, List<Message> messages, Object response, Map<String, Object> options) {
         // Default: no action
     }
 

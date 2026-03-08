@@ -8,6 +8,7 @@ import github.ponyhuang.agentframework.mcp.MCPStreamableHTTPTool;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -63,9 +64,10 @@ public class McpToolExample {
                 .build();
 
         // Run the agent
-        ChatResponse response = agent.run(List.of(
+        List<Message> collected = agent.runStream(List.of(
                 UserMessage.create("List all available tools you have access to.")
-        ));
+        )).collectList().block();
+        ChatResponse response = ChatResponse.builder().messages(collected).build();
 
         System.out.println("Response: " + response.getMessage().getTextContent());
 
@@ -97,9 +99,10 @@ public class McpToolExample {
                 .build();
 
         // Run the agent
-        ChatResponse response = agent.run(List.of(
+        List<Message> collected2 = agent.runStream(List.of(
                 UserMessage.create("Search for information about Java streams API.")
-        ));
+        )).collectList().block();
+        ChatResponse response = ChatResponse.builder().messages(collected2).build();
 
         System.out.println("Response: " + response.getMessage().getTextContent());
 

@@ -5,6 +5,7 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.function.Function;
@@ -102,14 +103,20 @@ public class GroupChatAgentBuilder {
 
         for (int turn = 0; turn < maxTurns; turn++) {
             // Current speaker responds
-            ChatResponse response = currentSpeaker.run(new ArrayList<>(conversationHistory));
+            List<Message> responseMessages = currentSpeaker.runStream(new ArrayList<>(conversationHistory)).collectList().block();
+            ChatResponse response = ChatResponse.builder()
+                    .messages(responseMessages)
+                    .build();
 
             if (response.getMessage() != null) {
                 conversationHistory.add(response.getMessage());
 
                 // Check if moderator should end the conversation
                 if (moderator != null) {
-                    ChatResponse moderatorResponse = moderator.run(new ArrayList<>(conversationHistory));
+                    List<Message> moderatorMessages = moderator.runStream(new ArrayList<>(conversationHistory)).collectList().block();
+                    ChatResponse moderatorResponse = ChatResponse.builder()
+                            .messages(moderatorMessages)
+                            .build();
                     if (shouldEndConversation(moderatorResponse)) {
                         return moderatorResponse;
                     }

@@ -5,6 +5,7 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +54,10 @@ public class SequentialAgentBuilder {
 
         for (Agent agent : agents) {
             Message userMessage = UserMessage.create(currentInput);
-            lastResponse = agent.run(List.of(userMessage));
+            List<Message> collectedMessages = agent.runStream(List.of(userMessage)).collectList().block();
+            lastResponse = ChatResponse.builder()
+                    .messages(collectedMessages)
+                    .build();
 
             // Transform output for next agent
             String output = lastResponse.getMessage() != null
@@ -75,7 +79,10 @@ public class SequentialAgentBuilder {
         List<Message> currentMessages = new ArrayList<>(messages);
 
         for (Agent agent : agents) {
-            ChatResponse response = agent.run(currentMessages);
+            List<Message> collectedMessages = agent.runStream(currentMessages).collectList().block();
+            ChatResponse response = ChatResponse.builder()
+                    .messages(collectedMessages)
+                    .build();
 
             if (response.getMessage() != null) {
                 currentMessages.add(response.getMessage());
@@ -103,7 +110,7 @@ public class SequentialAgentBuilder {
                 sb.append(((TextBlock) block).getText());
             }
         }
-        return sb.length() > 0 ? sb.toString() : null;
+        return !sb.isEmpty() ? sb.toString() : null;
     }
 
     /**

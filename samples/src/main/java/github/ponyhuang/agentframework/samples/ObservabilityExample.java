@@ -12,6 +12,7 @@ import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class ObservabilityExample {
 
         // 2. Create Agent with Tracing Middleware
         ChatClient client = ClientExample.openAIChatClient();
-        
+
         Agent agent = AgentBuilder.builder()
                 .name("ObservableAgent")
                 .instructions("You are a helpful assistant.")
@@ -36,22 +37,22 @@ public class ObservabilityExample {
                 .build();
 
         System.out.println("Starting observable agent run...");
-        
+
         // 3. Run Agent
         // Spans will be logged to console by LoggingSpanExporter
-        agent.run(List.of(UserMessage.create("Hello, tell me a joke about observability.")));
-        
+        agent.runStream(List.of(UserMessage.create("Hello, tell me a joke about observability."))).blockLast();
+
         System.out.println("Agent run completed. Check logs for traces.");
     }
 
     private static OpenTelemetry initOpenTelemetry() {
         // Create a logging exporter that prints spans to the console
         LoggingSpanExporter exporter = LoggingSpanExporter.create();
-        
+
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
                 .addSpanProcessor(SimpleSpanProcessor.create(exporter))
                 .build();
-        
+
         return OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
                 .buildAndRegisterGlobal();

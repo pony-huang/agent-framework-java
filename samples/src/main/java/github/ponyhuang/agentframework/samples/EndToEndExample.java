@@ -6,6 +6,7 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.observability.TracingMiddleware;
 import github.ponyhuang.agentframework.sessions.AgentSession;
+import github.ponyhuang.agentframework.sessions.ConversationSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
@@ -77,7 +78,7 @@ public class EndToEndExample {
         // 3. Define Context Provider (User Profile)
         ContextProvider userProfileProvider = new ContextProvider() {
             @Override
-            public List<Message> beforeRun(Object agent, AgentSession session, List<Message> messages, Map<String, Object> options) {
+            public List<Message> beforeRun(Object agent, ConversationSession session, List<Message> messages, Map<String, Object> options) {
                 // Read from options (which comes from Workflow Context) since we don't have a session in this workflow execution
                 String userLevel = (String) options.get("user_level");
                 if (userLevel == null) userLevel = "REGULAR";

@@ -5,6 +5,7 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -73,7 +74,10 @@ public class MagenticAgentBuilder {
 
         for (int i = 0; i < maxIterations; i++) {
             // Orchestrator decides next action
-            ChatResponse orchestratorResponse = orchestrator.run(new ArrayList<>(conversation));
+            List<Message> orchestratorMessages = orchestrator.runStream(new ArrayList<>(conversation)).collectList().block();
+            ChatResponse orchestratorResponse = ChatResponse.builder()
+                    .messages(orchestratorMessages)
+                    .build();
 
             if (orchestratorResponse.getMessage() == null) {
                 break;
@@ -91,9 +95,12 @@ public class MagenticAgentBuilder {
                 if (specialist != null) {
                     // Execute specialist
                     String specialistTask = extractSpecialistTask(responseText);
-                    ChatResponse specialistResponse = specialist.run(
+                    List<Message> specialistMessages = specialist.runStream(
                             List.of(UserMessage.create(specialistTask != null ? specialistTask : ""))
-                    );
+                    ).collectList().block();
+                    ChatResponse specialistResponse = ChatResponse.builder()
+                            .messages(specialistMessages)
+                            .build();
 
                     if (specialistResponse.getMessage() != null) {
                         lastSpecialistResult = getMessageText(specialistResponse.getMessage());
@@ -171,9 +178,12 @@ public class MagenticAgentBuilder {
                         return Map.entry(entry.getKey(), "Unknown specialist");
                     }
 
-                    ChatResponse response = specialist.run(
+                    List<Message> responseMessages = specialist.runStream(
                             List.of(UserMessage.create(entry.getValue()))
-                    );
+                    ).collectList().block();
+                    ChatResponse response = ChatResponse.builder()
+                            .messages(responseMessages)
+                            .build();
 
                     String result = response.getMessage() != null
                             ? getMessageText(response.getMessage())

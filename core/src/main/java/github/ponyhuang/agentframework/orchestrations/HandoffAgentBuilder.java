@@ -5,9 +5,11 @@ import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Builder for handoff agent execution.
@@ -86,7 +88,10 @@ public class HandoffAgentBuilder {
         for (int i = 0; i < maxHandoffs; i++) {
             // Execute current agent
             Message userMessage = UserMessage.create(currentInput);
-            lastResponse = currentAgent.run(List.of(userMessage));
+            List<Message> collectedMessages = currentAgent.runStream(List.of(userMessage)).collectList().block();
+            lastResponse = ChatResponse.builder()
+                    .messages(collectedMessages)
+                    .build();
 
             // Check for handoff
             String targetAgentName = handoffDecider.apply(lastResponse);

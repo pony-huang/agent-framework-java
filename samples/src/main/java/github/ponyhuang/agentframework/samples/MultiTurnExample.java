@@ -34,7 +34,7 @@ public class MultiTurnExample {
         // First turn
         String input1 = "My name is Alice and I love hiking.";
         System.out.println("User: " + input1);
-        ChatResponse response1 = session.run(UserMessage.create(input1));
+        ChatResponse response1 = session.run(session, UserMessage.create(input1));
         if (response1.getMessage() != null) {
             System.out.println("Agent: " + response1.getMessage().getTextContent() + "\n");
         } else {
@@ -44,7 +44,7 @@ public class MultiTurnExample {
         // Second turn - the agent should remember the user's name and hobby
         String input2 = "What do you remember about me?";
         System.out.println("User: " + input2);
-        ChatResponse response2 = session.run(UserMessage.create(input2));
+        ChatResponse response2 = session.run(session, UserMessage.create(input2));
         if (response2.getMessage() != null) {
             System.out.println("Agent: " + response2.getMessage().getTextContent());
         } else {

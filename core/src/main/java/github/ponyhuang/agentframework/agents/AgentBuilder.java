@@ -10,6 +10,7 @@ import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.mcp.MCPTool;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
+import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.message.Message;
@@ -413,9 +414,8 @@ public class AgentBuilder {
         }
 
         @Override
-        protected AgentSession createSession(Map<String, Object> options) {
-            // Default implementation - creates a simple in-memory session
-            return new InMemoryAgentSession(this);
+        public AgentSession createSession(SessionOptions options) {
+            return new InMemoryAgentSession(this, options);
         }
 
         @Override

@@ -7,6 +7,7 @@ import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -37,7 +38,7 @@ public class LoopAgentExample {
                 UserMessage.create("Calculate 15 + 27, then multiply the result by 3")
         );
 
-        ChatResponse response = agent.run(messages);
+        ChatResponse response = agent.run(messages, new java.util.HashMap<>());
 
         System.out.println("=== Final Response ===");
         System.out.println(response.getMessage().getTextContent());
@@ -46,7 +47,8 @@ public class LoopAgentExample {
         System.out.println("\n=== Using Session ===");
         var session = agent.createSession();
         session.addMessage(UserMessage.create("What is 100 divided by 4?"));
-        ChatResponse sessionResponse = session.run(UserMessage.create("What is 100 divided by 4?"));
+        List<Message> sessionMessages = session.runStream(session, UserMessage.create("What is 100 divided by 4?")).collectList().block();
+        ChatResponse sessionResponse = ChatResponse.builder().messages(sessionMessages).build();
         System.out.println(sessionResponse.getMessage().getTextContent());
     }
 

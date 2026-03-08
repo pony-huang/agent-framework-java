@@ -6,6 +6,7 @@ import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,7 +65,12 @@ public class ConcurrentAgentBuilder {
      */
     public List<ChatResponse> execute(List<Message> messages) {
         List<CompletableFuture<ChatResponse>> futures = agents.stream()
-                .map(agent -> CompletableFuture.supplyAsync(() -> agent.run(messages)))
+                .map(agent -> CompletableFuture.supplyAsync(() -> {
+                    List<Message> collectedMessages = agent.runStream(messages).collectList().block();
+                    return ChatResponse.builder()
+                            .messages(collectedMessages)
+                            .build();
+                }))
                 .collect(Collectors.toList());
 
         if (waitForAll) {

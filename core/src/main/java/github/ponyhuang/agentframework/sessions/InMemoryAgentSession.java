@@ -1,6 +1,7 @@
 package github.ponyhuang.agentframework.sessions;
 
 import github.ponyhuang.agentframework.agents.Agent;
+import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
@@ -12,10 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * In-memory implementation of AgentSession.
- * Stores messages and state in memory.
- */
 public class InMemoryAgentSession implements AgentSession {
 
     private static final Logger LOG = LoggerFactory.getLogger(InMemoryAgentSession.class);
@@ -24,12 +21,17 @@ public class InMemoryAgentSession implements AgentSession {
     private final Agent agent;
     private final List<Message> messages;
     private final Map<String, Object> metadata;
+    private volatile boolean closed = false;
 
     public InMemoryAgentSession(Agent agent) {
+        this(agent, SessionOptions.builder().build());
+    }
+
+    public InMemoryAgentSession(Agent agent, SessionOptions options) {
         this.id = UUID.randomUUID().toString();
         this.agent = agent;
-        this.messages = new ArrayList<>();
-        this.metadata = new HashMap<>();
+        this.messages = new ArrayList<>(options.getInitialMessages());
+        this.metadata = new HashMap<>(options.getMetadata());
         LOG.debug("Created InMemoryAgentSession for agent: {}", agent.getName());
     }
 
@@ -81,18 +83,6 @@ public class InMemoryAgentSession implements AgentSession {
     }
 
     @Override
-    public Flux<Message> runStream(Message message) {
-        addMessage(message);
-        LOG.debug("Running stream for session: {}", id);
-        Flux<Message> messageFlux = getAgent().runStream(getMessages());
-        return messageFlux.doOnNext(msg -> {
-            if (msg != null) {
-                addMessage(msg);
-            }
-        });
-    }
-
-    @Override
     public Map<String, Object> getMetadata() {
         return new HashMap<>(metadata);
     }
@@ -105,5 +95,46 @@ public class InMemoryAgentSession implements AgentSession {
     @Override
     public Object getMetadata(String key) {
         return metadata.get(key);
+    }
+
+    @Override
+    public ChatResponse run(ConversationSession session, Message message) {
+        if (closed) {
+            throw new IllegalStateException("Session is closed");
+        }
+        addMessage(message);
+        LOG.debug("Running for session: {}", id);
+        List<Message> currentMessages = getMessages();
+        Flux<Message> messageFlux = getAgent().runStream(currentMessages);
+        List<Message> collectedMessages = messageFlux.collectList().block();
+        return ChatResponse.builder()
+                .messages(collectedMessages)
+                .build();
+    }
+
+    @Override
+    public Flux<Message> runStream(ConversationSession session, Message message) {
+        if (closed) {
+            throw new IllegalStateException("Session is closed");
+        }
+        addMessage(message);
+        LOG.debug("Running stream for session: {}", id);
+        Flux<Message> messageFlux = getAgent().runStream(getMessages());
+        return messageFlux.doOnNext(msg -> {
+            if (msg != null) {
+                addMessage(msg);
+            }
+        });
+    }
+
+    @Override
+    public void close() {
+        this.closed = true;
+        LOG.debug("Session {} closed", id);
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed;
     }
 }

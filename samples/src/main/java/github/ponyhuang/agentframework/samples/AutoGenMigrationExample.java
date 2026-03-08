@@ -33,13 +33,13 @@ public class AutoGenMigrationExample {
         AgentSession session = assistant.createSession();
 
         System.out.println("User: Write a haiku about Java.");
-        ChatResponse response = session.run(UserMessage.create("Write a haiku about Java."));
+        ChatResponse response = session.run(session, UserMessage.create("Write a haiku about Java."));
 
         System.out.println("Assistant: " + response.getMessage().getTextContent());
-        
+
         // 4. Multi-turn (optional)
         System.out.println("\nUser: Explain it.");
-        response = session.run(UserMessage.create("Explain it."));
+        response = session.run(session, UserMessage.create("Explain it."));
         System.out.println("Assistant: " + response.getMessage().getTextContent());
     }
 }

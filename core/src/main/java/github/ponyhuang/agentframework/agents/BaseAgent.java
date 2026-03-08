@@ -8,6 +8,7 @@ import github.ponyhuang.agentframework.hooks.events.StopContext;
 import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
+import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.SystemMessage;
@@ -123,7 +124,7 @@ public abstract class BaseAgent implements Agent {
      */
     @Override
     public AgentSession createSession() {
-        return createSession(new HashMap<>());
+        return createSession(SessionOptions.builder().build());
     }
 
     /**
@@ -132,7 +133,7 @@ public abstract class BaseAgent implements Agent {
      * @param options session options
      * @return a new session
      */
-    protected abstract AgentSession createSession(Map<String, Object> options);
+    public abstract AgentSession createSession(SessionOptions options);
 
     /**
      * Merges default options with runtime options.
@@ -180,7 +181,6 @@ public abstract class BaseAgent implements Agent {
      */
     protected abstract Flux<Message> doRun(List<Message> messages, Map<String, Object> options);
 
-    @Override
     public ChatResponse run(List<Message> messages, Map<String, Object> options) {
         LOG.info("Agent '{}' run started, message count: {}", name, messages != null ? messages.size() : 0);
         Map<String, Object> mergedOptions = mergeOptions(options);
