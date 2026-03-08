@@ -1,10 +1,10 @@
-package example.agentframework.traeagent.samples;
+package example.agentframework.codeagent.samples;
 
-import example.agentframework.traeagent.tools.BashTool;
-import example.agentframework.traeagent.tools.EditTool;
-import example.agentframework.traeagent.tools.JSONEditTool;
-import example.agentframework.traeagent.tools.SequentialThinkingTool;
-import example.agentframework.traeagent.tools.TaskDoneTool;
+import example.agentframework.codeagent.tools.BashTool;
+import example.agentframework.codeagent.tools.EditTool;
+import example.agentframework.codeagent.tools.JSONEditTool;
+import example.agentframework.codeagent.tools.SequentialThinkingTool;
+import example.agentframework.codeagent.tools.TaskDoneTool;
 
 /**
  * Example showing how to use individual tools directly.
@@ -16,7 +16,7 @@ import example.agentframework.traeagent.tools.TaskDoneTool;
  * - SequentialThinkingTool for reasoning
  * - TaskDoneTool for task completion
  */
-public class TraeToolExample {
+public class CodeToolExample {
 
     public static void main(String[] args) {
         String workingDir = System.getProperty("user.dir");
@@ -28,7 +28,7 @@ public class TraeToolExample {
         SequentialThinkingTool thinkingTool = new SequentialThinkingTool();
         TaskDoneTool taskDoneTool = new TaskDoneTool();
 
-        System.out.println("=== Trae Tools Example ===\n");
+        System.out.println("=== Code Tools Example ===\n");
 
         // 1. Use BashTool
         System.out.println("1. Bash Tool - List files:");
@@ -37,7 +37,7 @@ public class TraeToolExample {
 
         // 2. Use EditTool - create a file
         System.out.println("\n2. Edit Tool - Create a file:");
-        String createResult = editTool.create("test.txt", "Hello from TraeAgent!");
+        String createResult = editTool.create("test.txt", "Hello from CodeAgent!");
         System.out.println(createResult);
 
         // 3. Use EditTool - view a file

@@ -1,20 +1,20 @@
-package example.agentframework.traeagent.tools;
+package example.agentframework.codeagent.tools;
 
 import github.ponyhuang.agentframework.tools.ToolExecutor;
-import example.agentframework.traeagent.config.TraeAgentConfig;
+import example.agentframework.codeagent.config.AgentConfig;
 
 import java.util.List;
 
 /**
- * Registry for TraeAgent tools.
+ * Registry for CodeAgent tools.
  * Registers and manages all available tools.
  */
-public class TraeToolRegistry {
+public class ToolRegistry {
 
     private final ToolExecutor toolExecutor;
-    private final TraeAgentConfig config;
+    private final AgentConfig config;
 
-    public TraeToolRegistry(TraeAgentConfig config) {
+    public ToolRegistry(AgentConfig config) {
         this.config = config;
         this.toolExecutor = new ToolExecutor();
         registerTools();

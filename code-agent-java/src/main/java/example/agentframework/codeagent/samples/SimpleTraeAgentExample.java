@@ -1,36 +1,36 @@
-package example.agentframework.traeagent.samples;
+package example.agentframework.codeagent.samples;
 
 import com.agui.core.agent.AgentSubscriber;
 import com.agui.core.event.*;
+import example.agentframework.codeagent.CodeAgent;
+import example.agentframework.codeagent.tools.ToolRegistry;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.providers.OpenAIChatClient;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import example.agentframework.traeagent.TraeAgent;
-import example.agentframework.traeagent.config.TraeAgentConfig;
-import example.agentframework.traeagent.tools.TraeToolRegistry;
-import example.agentframework.traeagent.trajectory.TrajectoryRecorder;
+import example.agentframework.codeagent.config.AgentConfig;
+import example.agentframework.codeagent.trajectory.TrajectoryRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Simple example showing how to use TraeAgent.
+ * Simple example showing how to use LoopAgent.
  *
  * This example demonstrates:
- * - Creating a TraeAgent with configuration
+ * - Creating a LoopAgent with configuration
  * - Setting up tools
  * - Subscribing to AG-UI events
  * - Executing a simple task
  */
-public class SimpleTraeAgentExample {
+public class SimpleCodeAgentExample {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    private static final Logger LOG = LoggerFactory.getLogger(SimpleTraeAgentExample.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SimpleCodeAgentExample.class);
 
     public static void main(String[] args) throws Exception {
         // Create configuration
-        TraeAgentConfig config = new TraeAgentConfig();
+        AgentConfig config = new AgentConfig();
         config.setProvider("openai");
         config.setBaseUrl(System.getenv("MY_OPENAI_BASE_URL"));
         config.setModel(System.getenv("MY_OPENAI_MODEL"));
@@ -46,15 +46,15 @@ public class SimpleTraeAgentExample {
                 .build();
 
         // Create tool registry
-        TraeToolRegistry toolRegistry = new TraeToolRegistry(config);
+        ToolRegistry toolRegistry = new ToolRegistry(config);
 
         // Create trajectory recorder (optional)
         TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(
                 "./trajectory/trajectory.json", true);
 
         // Build the agent
-        TraeAgent agent = TraeAgent.builder()
-                .name("trae-agent")
+        CodeAgent agent = CodeAgent.builder()
+                .name("loop-agent")
                 .client(client)
                 .config(config)
                 .toolExecutor(toolRegistry.getToolExecutor())
@@ -102,7 +102,7 @@ public class SimpleTraeAgentExample {
 
         // Print response
         if (response.getMessage() != null) {
-            System.out.println(response.getMessage().getText());
+            System.out.println(response.getMessage().getTextContent());
         }
 
         // Check completion status

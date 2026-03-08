@@ -1,13 +1,13 @@
-package example.agentframework.traeagent.config;
+package example.agentframework.codeagent.config;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Main configuration class for TraeAgent.
+ * Main configuration class for CodeAgent.
  * Loaded from YAML configuration file.
  */
-public class TraeAgentConfig {
+public class AgentConfig {
 
     private String provider = "anthropic";
     private String model = "claude-sonnet-4-20250514";

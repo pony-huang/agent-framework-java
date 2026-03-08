@@ -8,6 +8,7 @@ import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
 import github.ponyhuang.agentframework.types.block.ToolResultBlock;
 import github.ponyhuang.agentframework.types.Role;
@@ -168,18 +169,41 @@ public class OpenAIChatClient extends DefaultChatClient {
                 AssistantMessage assistantMsg = (AssistantMessage) message;
                 if (assistantMsg.hasFunctionCall()) {
                     hasToolCall = true;
+                    
+                    // Handle old-style functionCall map
                     Map<String, Object> functionCall = assistantMsg.getFunctionCall();
-                    ChatCompletionMessageFunctionToolCall.Function function =
-                            ChatCompletionMessageFunctionToolCall.Function.builder()
-                                    .name(asNonBlankString(functionCall.get("name")).orElse("tool"))
-                                    .arguments(toJsonString(functionCall.get("arguments")))
-                                    .build();
-                    assistantBuilder.addToolCall(
-                            ChatCompletionMessageFunctionToolCall.builder()
-                                    .id(asNonBlankString(functionCall.get("id"))
-                                            .orElseGet(() -> "call_" + UUID.randomUUID()))
-                                    .function(function)
-                                    .build());
+                    if (functionCall != null) {
+                        ChatCompletionMessageFunctionToolCall.Function function =
+                                ChatCompletionMessageFunctionToolCall.Function.builder()
+                                        .name(asNonBlankString(functionCall.get("name")).orElse("tool"))
+                                        .arguments(toJsonString(functionCall.get("arguments")))
+                                        .build();
+                        assistantBuilder.addToolCall(
+                                ChatCompletionMessageFunctionToolCall.builder()
+                                        .id(asNonBlankString(functionCall.get("id"))
+                                                .orElseGet(() -> "call_" + UUID.randomUUID()))
+                                        .function(function)
+                                        .build());
+                    }
+                    
+                    // Handle new-style ToolUseBlock
+                    if (message.getBlocks() != null) {
+                        for (Block block : message.getBlocks()) {
+                            if (block instanceof ToolUseBlock) {
+                                ToolUseBlock toolUse = (ToolUseBlock) block;
+                                ChatCompletionMessageFunctionToolCall.Function function =
+                                        ChatCompletionMessageFunctionToolCall.Function.builder()
+                                                .name(toolUse.getName())
+                                                .arguments(toolUse.getInput() != null ? toJsonString(toolUse.getInput()) : "{}")
+                                                .build();
+                                assistantBuilder.addToolCall(
+                                        ChatCompletionMessageFunctionToolCall.builder()
+                                                .id(toolUse.getId() != null ? toolUse.getId() : "call_" + UUID.randomUUID())
+                                                .function(function)
+                                                .build());
+                            }
+                        }
+                    }
                 }
             }
             

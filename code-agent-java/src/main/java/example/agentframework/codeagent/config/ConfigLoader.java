@@ -1,4 +1,4 @@
-package example.agentframework.traeagent.config;
+package example.agentframework.codeagent.config;
 
 import org.yaml.snakeyaml.Yaml;
 
@@ -9,13 +9,13 @@ import java.nio.file.Paths;
 import java.util.Optional;
 
 /**
- * Loads and parses YAML configuration for TraeAgent.
+ * Loads and parses YAML configuration for CodeAgent.
  * Supports environment variable overrides.
  */
 public class ConfigLoader {
 
-    private static final String DEFAULT_CONFIG_FILE = "trae-config.yaml";
-    private static final String ENV_PREFIX = "TRAE_";
+    private static final String DEFAULT_CONFIG_FILE = "code-config.yaml";
+    private static final String ENV_PREFIX = "CODE_";
 
     private final Yaml yaml;
 
@@ -26,14 +26,14 @@ public class ConfigLoader {
     /**
      * Load configuration from default location.
      */
-    public TraeAgentConfig load() throws IOException {
+    public AgentConfig load() throws IOException {
         return load(DEFAULT_CONFIG_FILE);
     }
 
     /**
      * Load configuration from specified file path.
      */
-    public TraeAgentConfig load(String configPath) throws IOException {
+    public AgentConfig load(String configPath) throws IOException {
         Path path = Paths.get(configPath);
         if (!Files.exists(path)) {
             // Try current working directory
@@ -44,7 +44,7 @@ public class ConfigLoader {
         }
 
         try (InputStream inputStream = Files.newInputStream(path)) {
-            TraeAgentConfig config = yaml.loadAs(inputStream, TraeAgentConfig.class);
+            AgentConfig config = yaml.loadAs(inputStream, AgentConfig.class);
             applyEnvironmentOverrides(config);
             return config;
         }
@@ -53,17 +53,17 @@ public class ConfigLoader {
     /**
      * Load configuration from input stream.
      */
-    public TraeAgentConfig load(InputStream inputStream) {
-        TraeAgentConfig config = yaml.loadAs(inputStream, TraeAgentConfig.class);
+    public AgentConfig load(InputStream inputStream) {
+        AgentConfig config = yaml.loadAs(inputStream, AgentConfig.class);
         applyEnvironmentOverrides(config);
         return config;
     }
 
     /**
      * Apply environment variable overrides.
-     * Supports: TRAE_PROVIDER, TRAE_MODEL, TRAE_API_KEY, TRAE_BASE_URL, TRAE_MAX_STEPS, etc.
+     * Supports: CODE_PROVIDER, CODE_MODEL, CODE_API_KEY, CODE_BASE_URL, CODE_MAX_STEPS, etc.
      */
-    private void applyEnvironmentOverrides(TraeAgentConfig config) {
+    private void applyEnvironmentOverrides(AgentConfig config) {
         // Provider
         Optional.ofNullable(System.getenv(ENV_PREFIX + "PROVIDER"))
                 .or(() -> Optional.ofNullable(System.getenv("ANTHROPIC_PROVIDER")))
@@ -109,8 +109,8 @@ public class ConfigLoader {
     /**
      * Create configuration programmatically with required fields.
      */
-    public static TraeAgentConfig create(String provider, String model, String apiKey) {
-        TraeAgentConfig config = new TraeAgentConfig();
+    public static AgentConfig create(String provider, String model, String apiKey) {
+        AgentConfig config = new AgentConfig();
         config.setProvider(provider);
         config.setModel(model);
         config.setApiKey(apiKey);
@@ -125,7 +125,7 @@ public class ConfigLoader {
     }
 
     public static class Builder {
-        private final TraeAgentConfig config = new TraeAgentConfig();
+        private final AgentConfig config = new AgentConfig();
 
         public Builder provider(String provider) {
             config.setProvider(provider);
@@ -172,7 +172,7 @@ public class ConfigLoader {
             return this;
         }
 
-        public TraeAgentConfig build() {
+        public AgentConfig build() {
             // Apply env overrides
             ConfigLoader loader = new ConfigLoader();
             loader.applyEnvironmentOverrides(config);

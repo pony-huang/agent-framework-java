@@ -1,4 +1,4 @@
-package example.agentframework.traeagent.config;
+package example.agentframework.codeagent.config;
 
 import java.util.Map;
 

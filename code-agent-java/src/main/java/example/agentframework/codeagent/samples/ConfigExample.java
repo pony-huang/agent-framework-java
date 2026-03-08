@@ -1,7 +1,7 @@
-package example.agentframework.traeagent.samples;
+package example.agentframework.codeagent.samples;
 
-import example.agentframework.traeagent.config.ConfigLoader;
-import example.agentframework.traeagent.config.TraeAgentConfig;
+import example.agentframework.codeagent.config.AgentConfig;
+import example.agentframework.codeagent.config.ConfigLoader;
 
 /**
  * Example showing how to load and use configuration.
@@ -21,7 +21,7 @@ public class ConfigExample {
         try {
             // Try to load config (may fail if file doesn't exist)
             ConfigLoader loader = new ConfigLoader();
-            TraeAgentConfig config = loader.load("trae-config.yaml");
+            AgentConfig config = loader.load("trae-config.yaml");
             printConfig(config);
         } catch (java.io.FileNotFoundException e) {
             System.out.println("Config file not found, using programmatic config");
@@ -33,7 +33,7 @@ public class ConfigExample {
 
         // Example 2: Using builder pattern
         System.out.println("\n2. Using builder pattern:");
-        TraeAgentConfig builderConfig = ConfigLoader.builder()
+        AgentConfig builderConfig = ConfigLoader.builder()
                 .provider("anthropic")
                 .model("claude-sonnet-4-20250514")
                 .apiKey(System.getenv("ANTHROPIC_API_KEY"))
@@ -49,17 +49,17 @@ public class ConfigExample {
         // Example 3: Environment variable overrides
         System.out.println("\n3. Environment variable support:");
         System.out.println("Supported environment variables:");
-        System.out.println("  - TRAE_PROVIDER / ANTHROPIC_PROVIDER / OPENAI_PROVIDER");
-        System.out.println("  - TRAE_MODEL / ANTHROPIC_MODEL / OPENAI_MODEL");
-        System.out.println("  - TRAE_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY");
-        System.out.println("  - TRAE_BASE_URL");
-        System.out.println("  - TRAE_MAX_STEPS");
-        System.out.println("  - TRAE_WORKING_DIRECTORY / WORKING_DIR");
-        System.out.println("  - TRAE_TRAJECTORY_ENABLED");
-        System.out.println("  - TRAE_TRAJECTORY_PATH");
+        System.out.println("  - CODE_PROVIDER / ANTHROPIC_PROVIDER / OPENAI_PROVIDER");
+        System.out.println("  - CODE_MODEL / ANTHROPIC_MODEL / OPENAI_MODEL");
+        System.out.println("  - CODE_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY");
+        System.out.println("  - CODE_BASE_URL");
+        System.out.println("  - CODE_MAX_STEPS");
+        System.out.println("  - CODE_WORKING_DIRECTORY / WORKING_DIR");
+        System.out.println("  - CODE_TRAJECTORY_ENABLED");
+        System.out.println("  - CODE_TRAJECTORY_PATH");
     }
 
-    private static void printConfig(TraeAgentConfig config) {
+    private static void printConfig(AgentConfig config) {
         System.out.println("Provider: " + config.getProvider());
         System.out.println("Model: " + config.getModel());
         System.out.println("API Key: " + (config.getApiKey() != null && !config.getApiKey().isEmpty() ? "***" : "not set"));
@@ -71,7 +71,7 @@ public class ConfigExample {
 
     private static void printProgrammaticConfig() {
         ConfigLoader loader = new ConfigLoader();
-        TraeAgentConfig config = ConfigLoader.create("anthropic", "claude-sonnet-4-20250514", "your-api-key");
+        AgentConfig config = ConfigLoader.create("anthropic", "claude-sonnet-4-20250514", "your-api-key");
         config.setMaxSteps(50);
         printConfig(config);
     }

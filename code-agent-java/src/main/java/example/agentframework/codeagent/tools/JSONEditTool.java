@@ -1,4 +1,4 @@
-package example.agentframework.traeagent.tools;
+package example.agentframework.codeagent.tools;
 
 import github.ponyhuang.agentframework.tools.Tool;
 import com.fasterxml.jackson.core.JsonProcessingException;

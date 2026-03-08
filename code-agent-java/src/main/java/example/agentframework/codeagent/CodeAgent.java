@@ -1,15 +1,20 @@
-package example.agentframework.traeagent;
+package example.agentframework.codeagent;
 
 import com.agui.core.agent.AgentSubscriber;
 import com.agui.core.event.*;
 import github.ponyhuang.agentframework.agents.BaseAgent;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
-import example.agentframework.traeagent.config.TraeAgentConfig;
-import example.agentframework.traeagent.trajectory.TrajectoryRecorder;
+import example.agentframework.codeagent.config.AgentConfig;
+import example.agentframework.codeagent.trajectory.TrajectoryRecorder;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.block.Block;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -18,14 +23,14 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * TraeAgent - An LLM-based software engineering agent.
+ * LoopAgent - An LLM-based software engineering agent.
  * Extends BaseAgent to provide multi-turn ReAct execution loop.
  */
-public class TraeAgent extends BaseAgent {
+public class CodeAgent extends BaseAgent {
 
-    private static final Logger LOG = LoggerFactory.getLogger(TraeAgent.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CodeAgent.class);
 
-    private final TraeAgentConfig config;
+    private final AgentConfig config;
     private final ToolExecutor toolExecutor;
     private final TrajectoryRecorder trajectoryRecorder;
     private final String systemPrompt;
@@ -34,7 +39,7 @@ public class TraeAgent extends BaseAgent {
     private boolean taskCompleted = false;
     private String patchContent = "";
 
-    protected TraeAgent(Builder builder) {
+    protected CodeAgent(Builder builder) {
         super(builder);
         this.config = builder.config;
         this.toolExecutor = builder.toolExecutor;
@@ -44,7 +49,7 @@ public class TraeAgent extends BaseAgent {
 
     @Override
     protected AgentSession createSession(Map<String, Object> options) {
-        return new TraeAgentSession(this, toolExecutor, trajectoryRecorder, options);
+        return new CodeAgentSession(this, toolExecutor, trajectoryRecorder, options);
     }
 
     @Override
@@ -52,7 +57,7 @@ public class TraeAgent extends BaseAgent {
         // Publish RUN_STARTED event
         publishEvent(() -> {
             RunStartedEvent event = new RunStartedEvent();
-            event.setRawEvent(Map.of("task", messages.isEmpty() ? "" : messages.get(0).getText()));
+            event.setRawEvent(Map.of("task", messages.isEmpty() ? "" : messages.get(0).getTextContent()));
             return event;
         });
 
@@ -105,7 +110,7 @@ public class TraeAgent extends BaseAgent {
             });
 
             // Publish TEXT_MESSAGE_CONTENT event
-            String textContent = assistantMessage.getText();
+            String textContent = assistantMessage.getTextContent();
             if (textContent != null && !textContent.isEmpty()) {
                 publishEvent(() -> {
                     TextMessageContentEvent event = new TextMessageContentEvent();
@@ -140,85 +145,88 @@ public class TraeAgent extends BaseAgent {
             }
 
             // Handle function calls - ReAct loop
-            Map<String, Object> functionCall = assistantMessage.getFunctionCall();
-            if (functionCall == null) {
+            // Extract function call from ToolUseBlock
+            List<Map<String, Object>> functionCalls = extractFunctionCalls(assistantMessage);
+            if (functionCalls.isEmpty()) {
                 break;
             }
 
-            String functionName = (String) functionCall.get("name");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> functionArgs = (Map<String, Object>) functionCall.get("arguments");
-            String toolCallId = (String) functionCall.get("id");
+            for (Map<String, Object> functionCall : functionCalls) {
+                String functionName = (String) functionCall.get("name");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> functionArgs = (Map<String, Object>) functionCall.get("arguments");
+                String toolCallId = (String) functionCall.get("id");
 
-            LOG.info("Executing tool: {}", functionName);
+                LOG.info("Executing tool: {}", functionName);
 
-            // Publish TOOL_CALL_START event
-            publishEvent(() -> {
-                ToolCallStartEvent event = new ToolCallStartEvent();
-                event.setToolCallId(toolCallId);
-                event.setToolCallName(functionName);
-                event.setParentMessageId(messageId);
-                return event;
-            });
+                // Publish TOOL_CALL_START event
+                publishEvent(() -> {
+                    ToolCallStartEvent event = new ToolCallStartEvent();
+                    event.setToolCallId(toolCallId);
+                    event.setToolCallName(functionName);
+                    event.setParentMessageId(messageId);
+                    return event;
+                });
 
-            // Record tool call
-            if (trajectoryRecorder != null) {
-                trajectoryRecorder.recordToolCall(functionName, functionArgs);
-            }
+                // Record tool call
+                if (trajectoryRecorder != null) {
+                    trajectoryRecorder.recordToolCall(functionName, functionArgs);
+                }
 
-            // Execute tool
-            Object toolResult;
-            try {
-                toolResult = toolExecutor.execute(functionName, functionArgs != null ? functionArgs : Collections.emptyMap());
-            } catch (Exception e) {
-                LOG.error("Tool execution failed: {}", e.getMessage());
-                toolResult = "Error: " + e.getMessage();
-            }
+                // Execute tool
+                Object toolResult;
+                try {
+                    toolResult = toolExecutor.execute(functionName, functionArgs != null ? functionArgs : Collections.emptyMap());
+                } catch (Exception e) {
+                    LOG.error("Tool execution failed: {}", e.getMessage());
+                    toolResult = "Error: " + e.getMessage();
+                }
 
-            final String resultStr = toolResult != null ? toolResult.toString() : "null";
+                final String resultStr = toolResult != null ? toolResult.toString() : "null";
 
-            // Publish TOOL_CALL_RESULT event
-            publishEvent(() -> {
-                ToolCallResultEvent event = new ToolCallResultEvent();
-                event.setToolCallId(toolCallId);
-                event.setContent(resultStr);
-                event.setMessageId(messageId);
-                return event;
-            });
+                // Publish TOOL_CALL_RESULT event
+                publishEvent(() -> {
+                    ToolCallResultEvent event = new ToolCallResultEvent();
+                    event.setToolCallId(toolCallId);
+                    event.setContent(resultStr);
+                    event.setMessageId(messageId);
+                    return event;
+                });
 
-            // Record tool result
-            if (trajectoryRecorder != null) {
-                trajectoryRecorder.recordToolResult(functionName, toolResult);
-            }
+                // Record tool result
+                if (trajectoryRecorder != null) {
+                    trajectoryRecorder.recordToolResult(functionName, toolResult);
+                }
 
-            // Check for task completion
-            if ("task_done".equals(functionName)) {
-                handleTaskDone(functionArgs, toolResult);
-            }
+                // Check for task completion
+                if ("task_done".equals(functionName)) {
+                    handleTaskDone(functionArgs, toolResult);
+                }
 
-            // Check for patch generation
-            if ("bash".equals(functionName) && functionArgs != null) {
-                String command = (String) functionArgs.get("command");
-                if (command != null && command.contains("git diff")) {
-                    // Capture patch content
-                    if (toolResult instanceof String) {
-                        patchContent = (String) toolResult;
+                // Check for patch generation
+                if ("bash".equals(functionName) && functionArgs != null) {
+                    String command = (String) functionArgs.get("command");
+                    if (command != null && command.contains("git diff")) {
+                        // Capture patch content
+                        if (toolResult instanceof String) {
+                            patchContent = (String) toolResult;
+                        }
                     }
                 }
-            }
 
-            // Add tool result message
-            Message toolMessage = Message.tool(toolCallId, functionName, resultStr);
-            conversationMessages.add(toolMessage);
+                // Add tool result message
+                Message toolMessage = ResultMessage.create(toolCallId, functionName, resultStr);
+                conversationMessages.add(toolMessage);
 
-            // Check if task is completed
-            if (taskCompleted) {
-                LOG.info("Task completed at step {}", currentStep);
-                if (trajectoryRecorder != null) {
-                    trajectoryRecorder.finish();
+                // Check if task is completed
+                if (taskCompleted) {
+                    LOG.info("Task completed at step {}", currentStep);
+                    if (trajectoryRecorder != null) {
+                        trajectoryRecorder.finish();
+                    }
+                    // Return final response with completion info
+                    return response;
                 }
-                // Return final response with completion info
-                return response;
             }
         }
 
@@ -233,10 +241,38 @@ public class TraeAgent extends BaseAgent {
                         .messages(conversationMessages)
                         .build())
                 : ChatResponse.builder()
-                        .choices(List.of(new ChatResponse.Choice(0,
-                                Message.assistant("Maximum steps reached without task completion."),
-                                "max_tokens")))
+                        .messages(List.of(AssistantMessage.create("Maximum steps reached without task completion.")))
                         .build();
+    }
+
+    private List<Map<String, Object>> extractFunctionCalls(Message message) {
+        List<Map<String, Object>> calls = new ArrayList<>();
+
+        // Try old-style functionCall map first
+        if (message instanceof AssistantMessage) {
+            AssistantMessage assistantMsg = (AssistantMessage) message;
+            Map<String, Object> functionCall = assistantMsg.getFunctionCall();
+            if (functionCall != null) {
+                calls.add(functionCall);
+                return calls;
+            }
+        }
+
+        // Try new-style ToolUseBlock
+        if (message.getBlocks() != null) {
+            for (Block block : message.getBlocks()) {
+                if (block instanceof ToolUseBlock) {
+                    ToolUseBlock toolUse = (ToolUseBlock) block;
+                    Map<String, Object> call = new HashMap<>();
+                    call.put("id", toolUse.getId());
+                    call.put("name", toolUse.getName());
+                    call.put("arguments", toolUse.getInput());
+                    calls.add(call);
+                }
+            }
+        }
+
+        return calls;
     }
 
     @Override
@@ -293,7 +329,7 @@ public class TraeAgent extends BaseAgent {
 
         // Create session and run
         AgentSession session = createSession(extraArgs);
-        return session.run(userMessage.toString());
+        return session.run(UserMessage.create(userMessage.toString()));
     }
 
     /**
@@ -367,23 +403,23 @@ public class TraeAgent extends BaseAgent {
     }
 
     /**
-     * Create a new TraeAgent builder.
+     * Create a new LoopAgent builder.
      */
     public static Builder builder() {
         return new Builder();
     }
 
     /**
-     * Builder for TraeAgent.
+     * Builder for LoopAgent.
      */
-    public static class Builder extends BaseAgent.Builder<TraeAgent, Builder> {
+    public static class Builder extends BaseAgent.Builder<CodeAgent, Builder> {
 
-        private TraeAgentConfig config;
+        private AgentConfig config;
         private ToolExecutor toolExecutor;
         private TrajectoryRecorder trajectoryRecorder;
-        private String systemPrompt = TraeAgentPrompts.DEFAULT_SYSTEM_PROMPT;
+        private String systemPrompt = CodeAgentPrompts.DEFAULT_SYSTEM_PROMPT;
 
-        public Builder config(TraeAgentConfig config) {
+        public Builder config(AgentConfig config) {
             this.config = config;
             return this;
         }
@@ -404,18 +440,18 @@ public class TraeAgent extends BaseAgent {
         }
 
         @Override
-        public TraeAgent build() {
+        public CodeAgent build() {
             // Use system prompt as instructions
             if (this.instructions == null && systemPrompt != null) {
                 this.instructions = systemPrompt;
             }
-            return new TraeAgent(this);
+            return new CodeAgent(this);
         }
     }
 
     // Getters
 
-    public TraeAgentConfig getConfig() {
+    public AgentConfig getConfig() {
         return config;
     }
 

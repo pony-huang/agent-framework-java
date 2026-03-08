@@ -1,10 +1,13 @@
-package example.agentframework.traeagent.trajectory;
+package example.agentframework.codeagent.trajectory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.block.Block;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,9 +82,34 @@ public class TrajectoryRecorder {
         }
 
         // Check if response has function call
-        if (response.getMessage() != null && response.getMessage().getFunctionCall() != null) {
-            data.put("has_function_call", true);
-            data.put("function_name", response.getMessage().getFunctionCall().get("name"));
+        if (response.getMessage() != null) {
+            boolean hasFunctionCall = false;
+            String functionName = null;
+            
+            // Check old-style functionCall map
+            if (response.getMessage() instanceof AssistantMessage) {
+                AssistantMessage assistantMsg = (AssistantMessage) response.getMessage();
+                if (assistantMsg.getFunctionCall() != null) {
+                    hasFunctionCall = true;
+                    functionName = (String) assistantMsg.getFunctionCall().get("name");
+                }
+            }
+            
+            // Check new-style ToolUseBlock
+            if (!hasFunctionCall && response.getMessage().getBlocks() != null) {
+                for (Block block : response.getMessage().getBlocks()) {
+                    if (block instanceof ToolUseBlock) {
+                        hasFunctionCall = true;
+                        functionName = ((ToolUseBlock) block).getName();
+                        break;
+                    }
+                }
+            }
+            
+            if (hasFunctionCall) {
+                data.put("has_function_call", true);
+                data.put("function_name", functionName);
+            }
         }
 
         addEvent(TrajectoryEvent.Type.LLM_RESPONSE, data);

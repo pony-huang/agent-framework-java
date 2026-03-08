@@ -1,22 +1,22 @@
-package example.agentframework.traeagent;
+package example.agentframework.codeagent;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
 import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.Message;
-import example.agentframework.traeagent.trajectory.TrajectoryRecorder;
+import github.ponyhuang.agentframework.types.message.Message;
+import example.agentframework.codeagent.trajectory.TrajectoryRecorder;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
 
 /**
- * Session implementation for TraeAgent.
+ * Session implementation for LoopAgent.
  */
-public class TraeAgentSession implements AgentSession {
+public class CodeAgentSession implements AgentSession {
 
-    private final TraeAgent agent;
+    private final CodeAgent agent;
     private final ToolExecutor toolExecutor;
     private final TrajectoryRecorder trajectoryRecorder;
     private final Map<String, Object> options;
@@ -24,8 +24,8 @@ public class TraeAgentSession implements AgentSession {
     private final List<Message> messages = new ArrayList<>();
     private final Map<String, Object> metadata = new HashMap<>();
 
-    public TraeAgentSession(TraeAgent agent, ToolExecutor toolExecutor,
-                           TrajectoryRecorder trajectoryRecorder, Map<String, Object> options) {
+    public CodeAgentSession(CodeAgent agent, ToolExecutor toolExecutor,
+                            TrajectoryRecorder trajectoryRecorder, Map<String, Object> options) {
         this.agent = agent;
         this.toolExecutor = toolExecutor;
         this.trajectoryRecorder = trajectoryRecorder;
@@ -51,7 +51,7 @@ public class TraeAgentSession implements AgentSession {
     @Override
     public void addMessage(Message message) {
         if (message != null) {
-            messages.add(message);
+            this.messages.add(message);
         }
     }
 
@@ -64,49 +64,57 @@ public class TraeAgentSession implements AgentSession {
 
     @Override
     public List<Message> getHistory(int limit) {
-        if (limit <= 0 || messages.size() <= limit) {
-            return new ArrayList<>(messages);
+        if (limit <= 0 || messages.isEmpty()) {
+            return new ArrayList<>();
         }
-        return new ArrayList<>(messages.subList(messages.size() - limit, messages.size()));
+        int start = Math.max(0, messages.size() - limit);
+        return new ArrayList<>(messages.subList(start, messages.size()));
     }
 
     @Override
     public void clearHistory() {
-        messages.clear();
+        this.messages.clear();
     }
 
     @Override
     public ChatResponse run(Message message) {
-        addMessage(message);
-
-        // Get context providers before run
-        List<ContextProvider> providers = agent.getContextProviders();
-        List<Message> currentMessages = getMessages();
-        Map<String, Object> runOptions = new HashMap<>(this.options);
-
+        if (message != null) {
+            this.messages.add(message);
+        }
+        
+        Map<String, Object> runOptions = new HashMap<>(options);
+        
         // Pre-run hooks
-        for (ContextProvider provider : providers) {
-            currentMessages = provider.beforeRun(agent, this, currentMessages, runOptions);
+        for (ContextProvider provider : agent.getContextProviders()) {
+            List<Message> updatedMessages = provider.beforeRun(agent, this, new ArrayList<>(this.messages), runOptions);
+            this.messages.clear();
+            this.messages.addAll(updatedMessages);
         }
-
-        ChatResponse response = agent.run(currentMessages);
-
+        
+        ChatResponse response = agent.run(new ArrayList<>(this.messages));
+        
         // Post-run hooks
-        for (ContextProvider provider : providers) {
-            provider.afterRun(agent, this, currentMessages, response, runOptions);
+        for (ContextProvider provider : agent.getContextProviders()) {
+            provider.afterRun(agent, this, new ArrayList<>(this.messages), response, runOptions);
         }
-
+        
         if (response.getMessage() != null) {
-            addMessage(response.getMessage());
+            this.messages.add(response.getMessage());
         }
-
         return response;
     }
 
     @Override
     public Flux<ChatResponse> runStream(Message message) {
-        addMessage(message);
-        return agent.runStream(getMessages(), options);
+        if (message != null) {
+            this.messages.add(message);
+        }
+        return agent.runStream(new ArrayList<>(this.messages))
+                .doOnNext(response -> {
+                    if (response.getMessage() != null) {
+                        this.messages.add(response.getMessage());
+                    }
+                });
     }
 
     @Override
@@ -116,18 +124,11 @@ public class TraeAgentSession implements AgentSession {
 
     @Override
     public void setMetadata(String key, Object value) {
-        metadata.put(key, value);
+        this.metadata.put(key, value);
     }
 
     @Override
     public Object getMetadata(String key) {
-        return metadata.get(key);
-    }
-
-    /**
-     * Get session options.
-     */
-    public Map<String, Object> getOptions() {
-        return new HashMap<>(options);
+        return this.metadata.get(key);
     }
 }
