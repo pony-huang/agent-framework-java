@@ -6,16 +6,31 @@ import java.time.Duration;
 /**
  * Interface for hook handlers.
  * Implementations execute different types of hooks (command, HTTP, prompt).
+ * Extends HookObserver to integrate with the observer + chain pattern.
  */
-public interface HookHandler {
+public interface HookHandler extends HookObserver {
 
     /**
      * Executes the hook with the given context.
      *
      * @param context the hook context
-     * @return the hook result
+     * @returns the hook result
      */
     HookResult execute(HookContext context);
+
+    /**
+     * Called when a subscribed event is published.
+     * Default implementation delegates to execute() for backward compatibility.
+     *
+     * @param event the event type
+     * @param context the event context
+     * @param chainContext the chain context for accumulating results
+     * @return the hook result
+     */
+    @Override
+    default HookResult onEvent(HookEvent event, HookContext context, ChainContext chainContext) {
+        return execute(context);
+    }
 
     /**
      * Gets the type of this hook handler.
