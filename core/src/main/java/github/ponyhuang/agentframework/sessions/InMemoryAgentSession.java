@@ -1,7 +1,8 @@
 package github.ponyhuang.agentframework.sessions;
 
 import github.ponyhuang.agentframework.agents.Agent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.agents.BaseAgent;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.events.SessionEndContext;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
@@ -135,14 +136,17 @@ public class InMemoryAgentSession implements AgentSession {
         this.closed = true;
         LOG.debug("Session {} closed", id);
 
-        HookExecutor hookExecutor = agent.getHookExecutor();
-        if (hookExecutor != null) {
+        HookEventBus hookEventBus = null;
+        if (agent instanceof BaseAgent) {
+            hookEventBus = ((BaseAgent) agent).getHookEventBus();
+        }
+        if (hookEventBus != null) {
             SessionEndContext context = new SessionEndContext();
             context.setSessionId(id);
             context.setReason("user_closed");
             context.setCwd(System.getProperty("user.dir"));
             context.setPermissionMode("default");
-            hookExecutor.executeSessionEnd(context);
+            hookEventBus.executeSessionEnd(context);
         }
     }
 

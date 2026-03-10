@@ -1,6 +1,6 @@
 package github.ponyhuang.agentframework.tools;
 
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.events.PermissionRequestContext;
 import github.ponyhuang.agentframework.hooks.events.PostToolUseContext;
@@ -23,7 +23,7 @@ public class ToolExecutor {
 
     private final Map<String, FunctionTool> tools = new ConcurrentHashMap<>();
     private final Map<String, Method> methodCache = new ConcurrentHashMap<>();
-    private HookExecutor hookExecutor;
+    private HookEventBus hookEventBus;
 
     /**
      * Registers a tool.
@@ -153,13 +153,13 @@ public class ToolExecutor {
     }
 
     /**
-     * Sets the hook executor for tool execution hooks.
+     * Sets the hook event bus for tool execution hooks.
      *
-     * @param hookExecutor the hook executor
+     * @param hookEventBus the hook event bus
      * @return this executor for chaining
      */
-    public ToolExecutor hookExecutor(HookExecutor hookExecutor) {
-        this.hookExecutor = hookExecutor;
+    public ToolExecutor hookEventBus(HookEventBus hookEventBus) {
+        this.hookEventBus = hookEventBus;
         return this;
     }
 
@@ -184,7 +184,7 @@ public class ToolExecutor {
         String toolUseId = UUID.randomUUID().toString();
 
         // Fire PreToolUse hook
-        if (hookExecutor != null) {
+        if (hookEventBus != null) {
             PreToolUseContext preContext = new PreToolUseContext();
             preContext.setToolName(name);
             preContext.setToolInput(args);
@@ -192,7 +192,7 @@ public class ToolExecutor {
             preContext.setCwd(System.getProperty("user.dir"));
             preContext.setPermissionMode("default");
 
-            HookResult preResult = hookExecutor.executePreToolUse(preContext);
+            HookResult preResult = hookEventBus.executePreToolUse(preContext);
 
             // If hook denies, throw exception
             if (!preResult.isAllow()) {
@@ -211,15 +211,15 @@ public class ToolExecutor {
             }
         }
 
-        // Request permission via hook if hookExecutor is available
-        if (hookExecutor != null) {
+        // Request permission via hook if hookEventBus is available
+        if (hookEventBus != null) {
             PermissionRequestContext permissionContext = new PermissionRequestContext();
             permissionContext.setToolName(name);
             permissionContext.setToolInput(args);
             permissionContext.setCwd(System.getProperty("user.dir"));
             permissionContext.setPermissionMode("default");
 
-            HookResult permissionResult = hookExecutor.executePermissionRequest(permissionContext);
+            HookResult permissionResult = hookEventBus.executePermissionRequest(permissionContext);
 
             if (!permissionResult.isAllow()) {
                 LOG.info("Tool {} blocked by PermissionRequest hook: {}", name, permissionResult.getReason());
@@ -232,7 +232,7 @@ public class ToolExecutor {
             LOG.info("Tool executed successfully: {}", name);
 
             // Fire PostToolUse hook
-            if (hookExecutor != null) {
+            if (hookEventBus != null) {
                 PostToolUseContext postContext = new PostToolUseContext();
                 postContext.setToolName(name);
                 postContext.setToolInput(args);
@@ -240,7 +240,7 @@ public class ToolExecutor {
                 postContext.setToolUseId(toolUseId);
                 postContext.setCwd(System.getProperty("user.dir"));
                 postContext.setPermissionMode("default");
-                hookExecutor.executePostToolUse(postContext);
+                hookEventBus.executePostToolUse(postContext);
             }
 
             return result;
@@ -248,7 +248,7 @@ public class ToolExecutor {
             LOG.error("Tool execution failed: {}, error: {}", name, e.getMessage());
 
             // Fire PostToolUseFailure hook
-            if (hookExecutor != null) {
+            if (hookEventBus != null) {
                 PostToolUseFailureContext failureContext = new PostToolUseFailureContext();
                 failureContext.setToolName(name);
                 failureContext.setToolInput(args);
@@ -256,7 +256,7 @@ public class ToolExecutor {
                 failureContext.setError(e.getMessage());
                 failureContext.setCwd(System.getProperty("user.dir"));
                 failureContext.setPermissionMode("default");
-                hookExecutor.executePostToolUseFailure(failureContext);
+                hookEventBus.executePostToolUseFailure(failureContext);
             }
 
             throw e;

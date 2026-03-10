@@ -4,7 +4,10 @@ import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
+import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.events.SubagentStartContext;
+import github.ponyhuang.agentframework.hooks.events.SubagentStopContext;
 import github.ponyhuang.agentframework.orchestrations.GroupChatAgentBuilder;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
@@ -22,54 +25,61 @@ public class GroupChatMigrationExample {
     public static void main(String[] args) {
         ChatClient client = ClientExample.openAIChatClient();
 
-        HookExecutor hookExecutor = HookExecutor.builder().build();
-        hookExecutor.registerHook(HookEvent.SUBAGENT_STOP, context -> {
-            if (context instanceof github.ponyhuang.agentframework.hooks.events.SubagentStopContext stopContext) {
+        HookEventBus.HookFunction subStop0 = context -> {
+            if (context instanceof SubagentStopContext stopContext) {
                 System.out.println("\n[Agent]: " + stopContext.getLastAssistantMessage());
             }
-            return github.ponyhuang.agentframework.hooks.HookResult.allow();
-        });
+            return HookResult.allow();
+        };
 
-        hookExecutor.registerHook(HookEvent.SUBAGENT_START, context -> {
-            if (context instanceof github.ponyhuang.agentframework.hooks.events.SubagentStartContext startContext) {
+        HookEventBus.HookFunction subStart = context -> {
+            if (context instanceof SubagentStartContext startContext) {
                 System.out.println("\n[Subagent Start]: " + startContext.getAgentId());
             }
-            return github.ponyhuang.agentframework.hooks.HookResult.allow();
-        });
+            return HookResult.allow();
+        };
 
-        hookExecutor.registerHook(HookEvent.SUBAGENT_STOP, context -> {
-            if (context instanceof github.ponyhuang.agentframework.hooks.events.SubagentStopContext stopContext) {
+        HookEventBus.HookFunction subStop = context -> {
+            if (context instanceof SubagentStopContext stopContext) {
                 System.out.println("[Subagent Stop]: " + stopContext.getAgentId());
             }
-            return github.ponyhuang.agentframework.hooks.HookResult.allow();
-        });
+            return HookResult.allow();
+        };
 
         Agent expert = AgentBuilder.builder()
                 .name("PythonExpert")
                 .instructions("You are an expert in Python. Answer questions and refine your answer based on feedback.")
                 .client(client)
-                .hookExecutor(hookExecutor)
+                .hook(HookEvent.SUBAGENT_STOP, subStop0)
+                .hook(HookEvent.SUBAGENT_STOP, subStart)
+                .hook(HookEvent.SUBAGENT_STOP, subStop)
                 .build();
 
         Agent verifier = AgentBuilder.builder()
                 .name("AnswerVerifier")
                 .instructions("You are a programming expert. Review the answer from PythonExpert. Point out dangerous statements. If good, say 'The answer looks good to me.'")
                 .client(client)
-                .hookExecutor(hookExecutor)
+                .hook(HookEvent.SUBAGENT_STOP, subStop0)
+                .hook(HookEvent.SUBAGENT_STOP, subStart)
+                .hook(HookEvent.SUBAGENT_STOP, subStop)
                 .build();
 
         Agent clarifier = AgentBuilder.builder()
                 .name("AnswerClarifier")
                 .instructions("You are an accessibility expert. Review the answer for clarity. Point out jargon. If clear, say 'The answer looks clear to me.'")
                 .client(client)
-                .hookExecutor(hookExecutor)
+                .hook(HookEvent.SUBAGENT_STOP, subStop0)
+                .hook(HookEvent.SUBAGENT_STOP, subStart)
+                .hook(HookEvent.SUBAGENT_STOP, subStop)
                 .build();
 
         Agent skeptic = AgentBuilder.builder()
                 .name("Skeptic")
                 .instructions("You are a devil's advocate. Point out caveats and exceptions. If satisfied, say 'I have no further questions.'")
                 .client(client)
-                .hookExecutor(hookExecutor)
+                .hook(HookEvent.SUBAGENT_STOP, subStop0)
+                .hook(HookEvent.SUBAGENT_STOP, subStart)
+                .hook(HookEvent.SUBAGENT_STOP, subStop)
                 .build();
 
         List<Agent> participants = List.of(expert, verifier, clarifier, skeptic);

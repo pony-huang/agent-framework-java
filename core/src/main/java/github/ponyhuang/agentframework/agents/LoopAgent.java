@@ -123,13 +123,6 @@ public class LoopAgent extends BaseAgent {
     }
 
     /**
-     * Get the tool executor.
-     */
-    public ToolExecutor getToolExecutor() {
-        return toolExecutor;
-    }
-
-    /**
      * Get max steps configured.
      */
     public int getMaxSteps() {
@@ -167,11 +160,6 @@ public class LoopAgent extends BaseAgent {
         private ToolExecutor toolExecutor;
         private int maxSteps = DEFAULT_MAX_STEPS;
         private LoopTerminationHandler terminationHandler;
-
-        public Builder toolExecutor(ToolExecutor toolExecutor) {
-            this.toolExecutor = toolExecutor;
-            return this;
-        }
 
         /**
          * Adds a tool to the agent by registering an instance with @Tool annotated methods.

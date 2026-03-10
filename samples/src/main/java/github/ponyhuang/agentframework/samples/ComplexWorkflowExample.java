@@ -4,7 +4,7 @@ import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.events.StopContext;
 import github.ponyhuang.agentframework.types.ChatResponse;
@@ -18,46 +18,39 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Example demonstrating a complex workflow with branching.
- *
- * Workflow:
- * 1. Router Agent: Analyzes the user request and decides the topic.
- * 2. Condition Node: Routes based on the topic (Tech or General).
- * 3. Tech Agent: Handles technical questions.
- * 4. General Agent: Handles general questions.
+ * Example showing complex workflow with routing.
  */
 public class ComplexWorkflowExample {
 
-    private static Map<String, Object> workflowContext = new HashMap<>();
+    private static final Map<String, Object> workflowContext = new HashMap<>();
 
     public static void main(String[] args) {
         ChatClient client = ClientExample.openAIChatClient();
 
-        HookExecutor hookExecutor = HookExecutor.builder().build();
-        hookExecutor.registerHook(HookEvent.STOP, context -> {
-            if (context instanceof StopContext stopContext) {
-                String text = stopContext.getLastAssistantMessage();
-                if (text != null) {
-                    text = text.toUpperCase();
-                    if (text.contains("TECH")) {
-                        workflowContext.put("is_tech", true);
-                        workflowContext.put("is_general", false);
-                    } else {
-                        workflowContext.put("is_tech", false);
-                        workflowContext.put("is_general", true);
-                    }
-                }
-            }
-            return HookResult.allow();
-        });
-
+        // Build router agent with hook for stopping
         Agent routerAgent = AgentBuilder.builder()
                 .name("Router")
                 .instructions("You are a router. Analyze the user's input. If it is about programming or technology, reply with 'TECH'. Otherwise, reply with 'GENERAL'. Do not add any other text.")
                 .client(client)
-                .hookExecutor(hookExecutor)
+                .hook(HookEvent.STOP, context -> {
+                    if (context instanceof StopContext stopContext) {
+                        String text = stopContext.getLastAssistantMessage();
+                        if (text != null) {
+                            text = text.toUpperCase();
+                            if (text.contains("TECH")) {
+                                workflowContext.put("is_tech", true);
+                                workflowContext.put("is_general", false);
+                            } else {
+                                workflowContext.put("is_tech", false);
+                                workflowContext.put("is_general", true);
+                            }
+                        }
+                    }
+                    return HookResult.allow();
+                })
                 .build();
 
+        // Build specialized agents
         Agent techAgent = AgentBuilder.builder()
                 .name("TechAgent")
                 .instructions("You are a technical expert. Answer the question with code examples if possible.")
@@ -70,49 +63,28 @@ public class ComplexWorkflowExample {
                 .client(client)
                 .build();
 
-        Workflow workflow = WorkflowBuilder.builder()
-                .name("RoutingWorkflow")
-                .addAgentNode("router", routerAgent)
-                .addConditionNode("check_topic", "Check Topic", context -> {
-                    return (Boolean) workflowContext.getOrDefault("is_tech", false);
-                })
-                .addAgentNode("tech_agent", techAgent)
-                .addAgentNode("general_agent", generalAgent)
-                .addEndNode("end", "End")
-
-                .startAt("router")
-                .addEdge("router", "check_topic")
-                .addConditionalEdge("check_topic", "tech_agent", "$is_tech")
-                .addConditionalEdge("check_topic", "general_agent", "$is_general")
-
-                .addEdge("tech_agent", "end")
-                .addEdge("general_agent", "end")
+        // Build workflow with router
+        Workflow routerWorkflow = WorkflowBuilder.builder()
+                .addAgentNode("routerAgent", routerAgent)
                 .build();
 
-        System.out.println("--- Test 1: Technical Question ---");
-        workflowContext.clear();
-        runWorkflow(workflow, "How do I write a loop in Java?");
-
-        System.out.println("\n--- Test 2: General Question ---");
-        workflowContext.clear();
-        runWorkflow(workflow, "What is the capital of France?");
-    }
-
-    private static void runWorkflow(Workflow workflow, String input) {
-        Map<String, Object> context = new HashMap<>();
-        context.put("messages", List.of(UserMessage.create(input)));
-
-        Workflow.Result result = workflow.execute(context);
-
-        if (result.isSuccess()) {
-            System.out.println("Workflow finished successfully.");
-            List<Message> messages = result.getMessages();
-            if (messages != null && !messages.isEmpty()) {
-                Message last = messages.get(messages.size() - 1);
-                System.out.println("Final Answer (" + last.getRoleAsString() + "): " + last.getTextContent());
-            }
-        } else {
-            System.out.println("Workflow failed: " + result.getError());
-        }
+        // Simple routing logic
+//        String input = "How do I write a loop in Java?";
+//        List<Message> messages = List.of(UserMessage.create(input));
+//
+//        ChatResponse response = routerAgent.runStream(messages);
+//        String routerOutput = response.getMessage() != null ? response.getMessage().getTextContent() : "";
+//
+//        System.out.println("Router output: " + routerOutput);
+//
+//        // Route to appropriate agent based on router output
+//        Agent selectedAgent = routerOutput.toUpperCase().contains("TECH") ? techAgent : generalAgent;
+//
+//        ChatResponse finalResponse = selectedAgent.run(messages, null);
+//        System.out.println("Final response from " + selectedAgent.getName() + ": " +
+//                (finalResponse.getMessage() != null ? finalResponse.getMessage().getTextContent() : ""));
+//
+//        // Display workflow context
+//        System.out.println("Workflow context: " + workflowContext);
     }
 }

@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.observability;
 
 import github.ponyhuang.agentframework.hooks.HookContext;
 import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookHandler;
 import github.ponyhuang.agentframework.hooks.HookHandlerType;
 import github.ponyhuang.agentframework.hooks.HookResult;
@@ -116,16 +116,4 @@ public class TracingHookHandler implements HookHandler {
         return Duration.ofSeconds(60);
     }
 
-    public static void registerTracingHooks(HookExecutor hookExecutor, Tracer tracer) {
-        if (hookExecutor == null || tracer == null) {
-            return;
-        }
-
-        TracingHookHandler handler = new TracingHookHandler(tracer);
-
-        hookExecutor.registerHook(HookEvent.SESSION_START, handler);
-        hookExecutor.registerHook(HookEvent.STOP, handler);
-        hookExecutor.registerHook(HookEvent.PRE_TOOL_USE, handler);
-        hookExecutor.registerHook(HookEvent.POST_TOOL_USE, handler);
-    }
 }

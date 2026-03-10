@@ -1,7 +1,7 @@
 package github.ponyhuang.agentframework.tools;
 
 import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.events.PermissionRequestContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,13 +28,13 @@ class ToolExecutorApprovalTest {
 
     private ToolExecutor executor;
     private TestService testService;
-    private HookExecutor hookExecutor;
+    private HookEventBus hookEventBus;
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
         executor = new ToolExecutor();
         testService = new TestService();
-        hookExecutor = new HookExecutor();
+        hookEventBus = new HookEventBus();
 
         // Register a tool
         Method method = TestService.class.getMethod("hello", String.class);
@@ -45,8 +45,8 @@ class ToolExecutorApprovalTest {
                 .build();
         executor.register(tool);
 
-        // Attach hook executor
-        executor.hookExecutor(hookExecutor);
+        // Attach hook event bus
+        executor.hookEventBus(hookEventBus);
     }
 
     /**
@@ -55,7 +55,7 @@ class ToolExecutorApprovalTest {
     @Test
     void testExecuteWithPermissionHookAllows() {
         // Add permission hook that always allows
-        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> HookResult.allow());
+        hookEventBus.registerHook(HookEvent.PERMISSION_REQUEST, context -> HookResult.allow());
 
         // Execute should succeed - just verify it doesn't throw
         assertDoesNotThrow(() ->
@@ -69,7 +69,7 @@ class ToolExecutorApprovalTest {
     @Test
     void testExecuteWithPermissionHookDenies() {
         // Add permission hook that denies
-        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST,
+        hookEventBus.registerHook(HookEvent.PERMISSION_REQUEST,
             context -> HookResult.deny("Not allowed"));
 
         // Try to execute - should throw SecurityException
@@ -98,7 +98,7 @@ class ToolExecutorApprovalTest {
         final String[] receivedName = new String[1];
         final Map<String, Object>[] receivedArgs = new Map[1];
 
-        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
+        hookEventBus.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
             PermissionRequestContext permContext = (PermissionRequestContext) context;
             receivedName[0] = permContext.getToolName();
             receivedArgs[0] = permContext.getToolInput();
@@ -118,7 +118,7 @@ class ToolExecutorApprovalTest {
      */
     @Test
     void testPermissionHookWithEmptyArguments() {
-        hookExecutor.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
+        hookEventBus.registerHook(HookEvent.PERMISSION_REQUEST, context -> {
             PermissionRequestContext permContext = (PermissionRequestContext) context;
             assertNotNull(permContext.getToolInput());
             return HookResult.allow();

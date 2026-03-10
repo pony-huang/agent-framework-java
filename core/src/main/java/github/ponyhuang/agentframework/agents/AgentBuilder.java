@@ -2,8 +2,8 @@ package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
-import github.ponyhuang.agentframework.hooks.HookExecutor.HookFunction;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
+import github.ponyhuang.agentframework.hooks.HookEventBus.HookFunction;
 import github.ponyhuang.agentframework.hooks.HookHandler;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.mcp.MCPTool;
@@ -36,7 +36,7 @@ public class AgentBuilder {
     private List<ContextProvider> contextProviders = new ArrayList<>();
     private Map<String, Object> defaultOptions = new HashMap<>();
     private ToolExecutor toolExecutor = new ToolExecutor();
-    private HookExecutor hookExecutor;
+    private HookEventBus hookEventBus = new HookEventBus();
 
     public static AgentBuilder builder() {
         return new AgentBuilder();
@@ -179,20 +179,6 @@ public class AgentBuilder {
     }
 
     /**
-     * Gets the internal ToolExecutor for manual tool execution.
-     * This is useful when you need to manually handle tool execution loops.
-     *
-     * @return the ToolExecutor instance
-     */
-    public ToolExecutor getToolExecutor() {
-        // Automatically inject hookExecutor if configured
-        if (hookExecutor != null) {
-            toolExecutor.hookExecutor(hookExecutor);
-        }
-        return toolExecutor;
-    }
-
-    /**
      * Adds a context provider to the agent.
      *
      * @param provider the context provider
@@ -261,10 +247,7 @@ public class AgentBuilder {
      * @return this builder
      */
     public AgentBuilder hook(HookEvent event, HookHandler handler) {
-        if (hookExecutor == null) {
-            hookExecutor = new HookExecutor();
-        }
-        hookExecutor.registerHook(event, handler);
+        hookEventBus.registerHook(event, handler);
         return this;
     }
 
@@ -277,10 +260,7 @@ public class AgentBuilder {
      * @return this builder
      */
     public AgentBuilder hook(HookEvent event, HookHandler handler, String matcher) {
-        if (hookExecutor == null) {
-            hookExecutor = new HookExecutor();
-        }
-        hookExecutor.registerHook(event, handler, matcher);
+        hookEventBus.registerHook(event, handler, matcher);
         return this;
     }
 
@@ -304,31 +284,8 @@ public class AgentBuilder {
      * @return this builder
      */
     public AgentBuilder hook(HookEvent event, HookFunction function, String matcher) {
-        if (hookExecutor == null) {
-            hookExecutor = HookExecutor.builder().build();
-        }
-        hookExecutor.registerHook(event, function, matcher);
+        hookEventBus.registerHook(event, function, matcher);
         return this;
-    }
-
-    /**
-     * Sets a custom HookExecutor.
-     *
-     * @param hookExecutor the hook executor
-     * @return this builder
-     */
-    public AgentBuilder hookExecutor(HookExecutor hookExecutor) {
-        this.hookExecutor = hookExecutor;
-        return this;
-    }
-
-    /**
-     * Gets the HookExecutor.
-     *
-     * @return the hook executor, or null if not configured
-     */
-    public HookExecutor getHookExecutor() {
-        return hookExecutor;
     }
 
     /**
@@ -342,7 +299,7 @@ public class AgentBuilder {
             throw new IllegalStateException("ChatClient is required");
         }
 
-        return new DefaultAgent(name, instructions, client, tools, contextProviders, defaultOptions, hookExecutor);
+        return new DefaultAgent(name, instructions, client, tools, contextProviders, defaultOptions, hookEventBus);
     }
 
     /**
@@ -363,12 +320,10 @@ public class AgentBuilder {
      */
     private static class DefaultAgent extends BaseAgent {
 
-        private final HookExecutor hookExecutor;
-
         public DefaultAgent(String name, String instructions, ChatClient client,
                            List<Map<String, Object>> tools, List<ContextProvider> contextProviders,
                            Map<String, Object> defaultOptions,
-                           HookExecutor hookExecutor) {
+                           HookEventBus hookEventBus) {
             super();
             this.name = name;
             this.instructions = instructions;
@@ -376,12 +331,7 @@ public class AgentBuilder {
             this.tools = tools != null ? new ArrayList<>(tools) : new ArrayList<>();
             this.contextProviders = contextProviders != null ? new ArrayList<>(contextProviders) : new ArrayList<>();
             this.defaultOptions = defaultOptions != null ? new HashMap<>(defaultOptions) : new HashMap<>();
-            this.hookExecutor = hookExecutor;
-        }
-
-        @Override
-        public HookExecutor getHookExecutor() {
-            return hookExecutor;
+            this.hookEventBus = hookEventBus;
         }
 
         @Override

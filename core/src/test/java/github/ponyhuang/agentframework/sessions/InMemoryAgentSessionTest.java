@@ -1,7 +1,7 @@
 package github.ponyhuang.agentframework.sessions;
 
 import github.ponyhuang.agentframework.agents.Agent;
-import github.ponyhuang.agentframework.types.Message;
+import github.ponyhuang.agentframework.types.message.Message;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

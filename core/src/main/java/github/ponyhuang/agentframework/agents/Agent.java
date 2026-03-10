@@ -1,7 +1,6 @@
 package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
 import github.ponyhuang.agentframework.sessions.SessionOptions;
@@ -109,13 +108,4 @@ public interface Agent {
      * @return this agent for chaining
      */
     Agent addContextProvider(ContextProvider provider);
-
-    /**
-     * Gets the hook executor for this agent.
-     *
-     * @return the hook executor, or null if not configured
-     */
-    default HookExecutor getHookExecutor() {
-        return null;
-    }
 }

@@ -1,7 +1,7 @@
 package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookExecutor;
+import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.events.SessionStartContext;
 import github.ponyhuang.agentframework.hooks.events.StopContext;
@@ -38,6 +38,7 @@ public abstract class BaseAgent implements Agent {
     protected List<Map<String, Object>> tools;
     protected List<ContextProvider> contextProviders;
     protected Map<String, Object> defaultOptions;
+    protected HookEventBus hookEventBus;
 
     protected BaseAgent() {
         this.tools = new ArrayList<>();
@@ -101,6 +102,16 @@ public abstract class BaseAgent implements Agent {
             tools.removeIf(tool -> toolName.equals(tool.get("name")));
         }
         return this;
+    }
+
+    /**
+     * Gets the hook event bus for this agent (internal use only).
+     *
+     * @return the hook event bus, or null if not configured
+     */
+    @SuppressWarnings("unused")
+    public HookEventBus getHookEventBus() {
+        return hookEventBus;
     }
 
     /**
@@ -171,23 +182,23 @@ public abstract class BaseAgent implements Agent {
         LOG.info("Agent '{}' run started, message count: {}", name, messages != null ? messages.size() : 0);
         Map<String, Object> mergedOptions = mergeOptions(options);
 
-        HookExecutor hookExecutor = getHookExecutor();
+        HookEventBus hookEventBus = getHookEventBus();
 
-        if (hookExecutor != null) {
+        if (hookEventBus != null) {
             SessionStartContext sessionStartContext = new SessionStartContext();
             sessionStartContext.setSessionId(UUID.randomUUID().toString());
             sessionStartContext.setSource("startup");
             sessionStartContext.setModel(client != null ? client.getModel() : "unknown");
             sessionStartContext.setCwd(System.getProperty("user.dir"));
             sessionStartContext.setPermissionMode("default");
-            hookExecutor.executeSessionStart(sessionStartContext);
+            hookEventBus.executeSessionStart(sessionStartContext);
 
             if (messages != null && !messages.isEmpty()) {
                 UserPromptSubmitContext promptContext = new UserPromptSubmitContext();
                 promptContext.setSessionId(sessionStartContext.getSessionId());
                 Message lastMessage = messages.get(messages.size() - 1);
                 promptContext.setPrompt(lastMessage.getTextContent());
-                HookResult promptResult = hookExecutor.executeUserPromptSubmit(promptContext);
+                HookResult promptResult = hookEventBus.executeUserPromptSubmit(promptContext);
                 if (!promptResult.isAllow()) {
                     LOG.info("UserPromptSubmit hook blocked execution: {}", promptResult.getReason());
                     return ChatResponse.builder()
@@ -208,7 +219,7 @@ public abstract class BaseAgent implements Agent {
 
             LOG.info("Agent '{}' run completed", name);
 
-            fireStopHook(hookExecutor, response);
+            fireStopHook(hookEventBus, response);
 
             return response;
         } catch (Exception e) {
@@ -217,8 +228,8 @@ public abstract class BaseAgent implements Agent {
         }
     }
 
-    private void fireStopHook(HookExecutor hookExecutor, ChatResponse response) {
-        if (hookExecutor != null) {
+    private void fireStopHook(HookEventBus hookEventBus, ChatResponse response) {
+        if (hookEventBus != null) {
             StopContext stopContext = new StopContext();
             stopContext.setStopHookActive(false);
             if (response != null && response.getMessage() != null) {
@@ -233,7 +244,7 @@ public abstract class BaseAgent implements Agent {
                 }
                 stopContext.setLastAssistantMessage(sb.toString());
             }
-            HookResult result = hookExecutor.executeStop(stopContext);
+            HookResult result = hookEventBus.executeStop(stopContext);
             if (!result.isShouldContinue()) {
                 LOG.info("Stop hook prevented completion: {}", result.getStopReason());
             }
@@ -245,10 +256,10 @@ public abstract class BaseAgent implements Agent {
         LOG.info("Agent '{}' stream started, message count: {}", name, messages != null ? messages.size() : 0);
         Map<String, Object> mergedOptions = mergeOptions(options);
 
-        HookExecutor hookExecutor = getHookExecutor();
+        HookEventBus hookEventBus = getHookEventBus();
         final String[] sessionId = {null};
 
-        if (hookExecutor != null) {
+        if (hookEventBus != null) {
             SessionStartContext sessionStartContext = new SessionStartContext();
             sessionId[0] = UUID.randomUUID().toString();
             sessionStartContext.setSessionId(sessionId[0]);
@@ -256,14 +267,14 @@ public abstract class BaseAgent implements Agent {
             sessionStartContext.setModel(client != null ? client.getModel() : "unknown");
             sessionStartContext.setCwd(System.getProperty("user.dir"));
             sessionStartContext.setPermissionMode("default");
-            hookExecutor.executeSessionStart(sessionStartContext);
+            hookEventBus.executeSessionStart(sessionStartContext);
 
             if (messages != null && !messages.isEmpty()) {
                 UserPromptSubmitContext promptContext = new UserPromptSubmitContext();
                 promptContext.setSessionId(sessionId[0]);
                 Message lastMessage = messages.get(messages.size() - 1);
                 promptContext.setPrompt(lastMessage.getTextContent());
-                HookResult promptResult = hookExecutor.executeUserPromptSubmit(promptContext);
+                HookResult promptResult = hookEventBus.executeUserPromptSubmit(promptContext);
                 if (!promptResult.isAllow()) {
                     LOG.info("UserPromptSubmit hook blocked execution: {}", promptResult.getReason());
                     return Flux.empty();
@@ -278,11 +289,11 @@ public abstract class BaseAgent implements Agent {
         return messageFlux
                 .doOnNext(message -> {
                     collectedMessagesRef.get().add(message);
-                    if (hookExecutor == null) return;
+                    if (hookEventBus == null) return;
                 })
                 .doOnComplete(() -> {
                     LOG.info("Agent '{}' stream completed", name);
-                    if (hookExecutor != null) {
+                    if (hookEventBus != null) {
                         List<Message> collectedMessages = collectedMessagesRef.get();
                         if (!collectedMessages.isEmpty()) {
                             List<Message> reversedMessages = new ArrayList<>(collectedMessages);
@@ -290,17 +301,17 @@ public abstract class BaseAgent implements Agent {
                             ChatResponse response = ChatResponse.builder()
                                     .messages(reversedMessages)
                                     .build();
-                            fireStopHook(hookExecutor, sessionId[0], response);
+                            fireStopHook(hookEventBus, sessionId[0], response);
                         } else {
-                            fireStopHook(hookExecutor, sessionId[0], null);
+                            fireStopHook(hookEventBus, sessionId[0], null);
                         }
                     }
                 })
                 .doOnError(e -> LOG.error("Agent '{}' stream failed: {}", name, e.getMessage()));
     }
 
-    private void fireStopHook(HookExecutor hookExecutor, String sessionId, ChatResponse response) {
-        if (hookExecutor != null) {
+    private void fireStopHook(HookEventBus hookEventBus, String sessionId, ChatResponse response) {
+        if (hookEventBus != null) {
             StopContext stopContext = new StopContext();
             stopContext.setStopHookActive(false);
             if (response != null && response.getMessage() != null) {
@@ -315,7 +326,7 @@ public abstract class BaseAgent implements Agent {
                 }
                 stopContext.setLastAssistantMessage(sb.toString());
             }
-            HookResult result = hookExecutor.executeStop(stopContext);
+            HookResult result = hookEventBus.executeStop(stopContext);
             if (!result.isShouldContinue()) {
                 LOG.info("Stop hook prevented completion: {}", result.getStopReason());
             }

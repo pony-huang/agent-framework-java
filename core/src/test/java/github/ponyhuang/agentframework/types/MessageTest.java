@@ -1,5 +1,6 @@
 package github.ponyhuang.agentframework.types;
 
+import github.ponyhuang.agentframework.types.message.Message;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
