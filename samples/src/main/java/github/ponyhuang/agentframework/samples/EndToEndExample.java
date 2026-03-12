@@ -6,14 +6,11 @@ import github.ponyhuang.agentframework.clients.ChatClient;
 import github.ponyhuang.agentframework.hooks.event.HookEventType;
 import github.ponyhuang.agentframework.hooks.event.UserPromptSubmitEvent;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.observability.TracingHookHandler;
-import github.ponyhuang.agentframework.sessions.AgentSession;
+import github.ponyhuang.agentframework.hooks.TracingHookHandler;
 import github.ponyhuang.agentframework.sessions.ConversationSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
-import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
-import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.message.SystemMessage;
 import github.ponyhuang.agentframework.workflows.Workflow;
 import github.ponyhuang.agentframework.workflows.WorkflowBuilder;
@@ -28,12 +25,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
-import java.io.UnsupportedEncodingException;
 
 /**
  * End-to-End Example: Customer Support Bot

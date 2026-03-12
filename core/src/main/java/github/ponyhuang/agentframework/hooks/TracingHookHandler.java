@@ -1,9 +1,5 @@
-package github.ponyhuang.agentframework.observability;
+package github.ponyhuang.agentframework.hooks;
 
-import github.ponyhuang.agentframework.hooks.HookEventBus;
-import github.ponyhuang.agentframework.hooks.HookHandler;
-import github.ponyhuang.agentframework.hooks.HookHandlerType;
-import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.event.BaseEvent;
 import github.ponyhuang.agentframework.hooks.event.SessionEndEvent;
 import github.ponyhuang.agentframework.hooks.event.SessionStartEvent;
@@ -15,7 +11,6 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 
 import java.time.Duration;
-import java.util.UUID;
 
 public class TracingHookHandler implements HookHandler {
 
