@@ -1,36 +1,23 @@
 package github.ponyhuang.agentframework.hooks;
 
 
+import github.ponyhuang.agentframework.hooks.event.BaseEvent;
+
 import java.time.Duration;
 
 /**
  * Interface for hook handlers.
  * Implementations execute different types of hooks (command, HTTP, prompt).
- * Extends HookObserver to integrate with the observer + chain pattern.
  */
-public interface HookHandler extends HookObserver {
+public interface HookHandler {
 
     /**
-     * Executes the hook with the given context.
+     * Executes the hook with the given event.
      *
-     * @param context the hook context
-     * @returns the hook result
-     */
-    HookResult execute(HookContext context);
-
-    /**
-     * Called when a subscribed event is published.
-     * Default implementation delegates to execute() for backward compatibility.
-     *
-     * @param event the event type
-     * @param context the event context
-     * @param chainContext the chain context for accumulating results
+     * @param event the hook event
      * @return the hook result
      */
-    @Override
-    default HookResult onEvent(HookEvent event, HookContext context, ChainContext chainContext) {
-        return execute(context);
-    }
+    HookResult execute(BaseEvent event);
 
     /**
      * Gets the type of this hook handler.

@@ -2,6 +2,7 @@ package github.ponyhuang.agentframework.hooks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.hooks.event.BaseEvent;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
@@ -41,7 +42,7 @@ public class PromptHookHandler implements HookHandler {
     }
 
     @Override
-    public HookResult execute(HookContext context) {
+    public HookResult execute(BaseEvent event) {
         if (chatClient == null) {
             LOG.warn("No ChatClient configured for prompt hook");
             return HookResult.allow();
@@ -49,7 +50,7 @@ public class PromptHookHandler implements HookHandler {
 
         try {
             // Build the prompt with $ARGUMENTS replaced by context JSON
-            String contextJson = MAPPER.writeValueAsString(context.toMap());
+            String contextJson = MAPPER.writeValueAsString(event.toMap());
             String fullPrompt = prompt.replace("$ARGUMENTS", contextJson);
 
             // Build messages

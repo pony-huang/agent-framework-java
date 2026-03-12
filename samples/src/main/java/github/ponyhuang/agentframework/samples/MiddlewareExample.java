@@ -2,10 +2,9 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookEventBus;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
+import github.ponyhuang.agentframework.hooks.event.UserPromptSubmitEvent;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.hooks.events.UserPromptSubmitContext;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
@@ -25,9 +24,9 @@ public class MiddlewareExample {
                 .name("HookAgent")
                 .instructions("You are a helpful assistant.")
                 .client(client)
-                .hook(HookEvent.USER_PROMPT_SUBMIT, context -> {
-                    if (context instanceof UserPromptSubmitContext promptContext) {
-                        String prompt = promptContext.getPrompt();
+                .hook(HookEventType.USER_PROMPT_SUBMIT, event -> {
+                    if (event instanceof UserPromptSubmitEvent promptEvent) {
+                        String prompt = promptEvent.getPrompt();
 
                         if (prompt != null && prompt.toLowerCase().contains("unsafe")) {
                             System.out.println("[Hook] Blocked unsafe content!");
@@ -38,7 +37,7 @@ public class MiddlewareExample {
                     }
                     return HookResult.allow();
                 })
-                .hook(HookEvent.STOP, context -> {
+                .hook(HookEventType.STOP, context -> {
                     System.out.println("[Hook] Agent execution completed");
                     return HookResult.allow();
                 });

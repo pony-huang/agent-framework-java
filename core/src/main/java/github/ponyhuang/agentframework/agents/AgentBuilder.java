@@ -1,11 +1,12 @@
 package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
+import github.ponyhuang.agentframework.hooks.Hook;
 import github.ponyhuang.agentframework.hooks.HookEventBus;
-import github.ponyhuang.agentframework.hooks.HookEventBus.HookFunction;
 import github.ponyhuang.agentframework.hooks.HookHandler;
 import github.ponyhuang.agentframework.hooks.HookResult;
+import github.ponyhuang.agentframework.hooks.event.BaseEvent;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
 import github.ponyhuang.agentframework.mcp.MCPTool;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ContextProvider;
@@ -240,51 +241,85 @@ public class AgentBuilder {
     }
 
     /**
-     * Adds a hook handler for a specific event.
+     * Adds a hook for specific event types.
      *
-     * @param event the hook event
-     * @param handler the hook handler
+     * @param hook the hook implementation
      * @return this builder
      */
-    public AgentBuilder hook(HookEvent event, HookHandler handler) {
-        hookEventBus.registerHook(event, handler);
+    public AgentBuilder hook(Hook hook) {
+        hookEventBus.registerHook(hook);
         return this;
     }
 
     /**
-     * Adds a hook handler for a specific event with a matcher.
+     * Adds a hook for a specific event type with lambda.
      *
-     * @param event the hook event
-     * @param handler the hook handler
-     * @param matcher the regex matcher (e.g., "Bash" for tool name)
+     * @param eventType the hook event type
+     * @param handler the hook handler (lambda)
      * @return this builder
      */
-    public AgentBuilder hook(HookEvent event, HookHandler handler, String matcher) {
-        hookEventBus.registerHook(event, handler, matcher);
+    public AgentBuilder on(HookEventType eventType, java.util.function.Function<BaseEvent, HookResult> handler) {
+        return on(eventType, handler, null);
+    }
+
+    /**
+     * Adds a hook for a specific event type with lambda and matcher.
+     *
+     * @param eventType the hook event type
+     * @param handler the hook handler (lambda)
+     * @param matcher the regex matcher pattern
+     * @return this builder
+     */
+    public AgentBuilder on(HookEventType eventType, java.util.function.Function<BaseEvent, HookResult> handler, String matcher) {
+        hookEventBus.registerHook(eventType, handler, matcher);
+        return this;
+    }
+
+    /**
+     * Adds a hook handler for a specific event.
+     *
+     * @param eventType the hook event type
+     * @param handler the hook handler
+     * @return this builder
+     */
+    public AgentBuilder hook(HookEventType eventType, HookHandler handler) {
+        hookEventBus.registerHook(eventType, handler);
         return this;
     }
 
     /**
      * Adds a hook using a lambda function.
      *
-     * @param event the hook event
-     * @param function the hook function (lambda)
+     * @param eventType the hook event type
+     * @param handler the hook handler (lambda)
      * @return this builder
      */
-    public AgentBuilder hook(HookEvent event, HookFunction function) {
-        return hook(event, function, null);
+    public AgentBuilder hook(HookEventType eventType, java.util.function.Function<BaseEvent, HookResult> handler) {
+        return on(eventType, handler);
     }
 
     /**
      * Adds a hook using a lambda function with matcher.
      *
-     * @param event the hook event
-     * @param function the hook function (lambda)
+     * @param eventType the hook event type
+     * @param handler the hook handler (lambda)
      * @param matcher the regex matcher pattern
      * @return this builder
      */
-    public AgentBuilder hook(HookEvent event, HookFunction function, String matcher) {
-        hookEventBus.registerHook(event, function, matcher);
+    public AgentBuilder hook(HookEventType eventType, java.util.function.Function<BaseEvent, HookResult> handler, String matcher) {
+        return on(eventType, handler, matcher);
+    }
+
+    /**
+     * Adds a hook handler for a specific event with a matcher.
+     *
+     * @param eventType the hook event type
+     * @param handler the hook handler
+     * @param matcher the regex matcher (e.g., "Bash" for tool name)
+     * @return this builder
+     */
+    public AgentBuilder hook(HookEventType eventType, HookHandler handler, String matcher) {
+        hookEventBus.registerHook(eventType, handler, matcher);
         return this;
     }
 

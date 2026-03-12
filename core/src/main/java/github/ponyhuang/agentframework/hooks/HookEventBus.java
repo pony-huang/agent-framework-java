@@ -1,12 +1,13 @@
 package github.ponyhuang.agentframework.hooks;
 
-import github.ponyhuang.agentframework.hooks.events.*;
+import github.ponyhuang.agentframework.hooks.event.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -17,7 +18,7 @@ public class HookEventBus {
 
     private static final Logger LOG = LoggerFactory.getLogger(HookEventBus.class);
 
-    private final Map<HookEvent, List<HookObserver>> observers;
+    private final Map<HookEventType, List<HookObserver>> observers;
     private final ExecutorService executorService;
     private final boolean disabled;
 
@@ -25,7 +26,7 @@ public class HookEventBus {
         this(new HashMap<>(), null, false);
     }
 
-    public HookEventBus(Map<HookEvent, List<HookObserver>> observers,
+    public HookEventBus(Map<HookEventType, List<HookObserver>> observers,
                         ExecutorService executorService, boolean disabled) {
         this.observers = observers != null ? observers : new HashMap<>();
         this.executorService = executorService != null ? executorService : Executors.newCachedThreadPool();
@@ -34,22 +35,16 @@ public class HookEventBus {
 
     /**
      * Subscribes an observer to an event.
-     *
-     * @param event the event to subscribe to
-     * @param observer the observer to add
      */
-    public void subscribe(HookEvent event, HookObserver observer) {
+    public void subscribe(HookEventType event, HookObserver observer) {
         observers.computeIfAbsent(event, k -> new ArrayList<>()).add(observer);
         LOG.debug("Subscribed {} to event {}", observer.getClass().getSimpleName(), event);
     }
 
     /**
      * Unsubscribes an observer from an event.
-     *
-     * @param event the event to unsubscribe from
-     * @param observer the observer to remove
      */
-    public void unsubscribe(HookEvent event, HookObserver observer) {
+    public void unsubscribe(HookEventType event, HookObserver observer) {
         List<HookObserver> list = observers.get(event);
         if (list != null) {
             list.remove(observer);
@@ -58,46 +53,41 @@ public class HookEventBus {
     }
 
     /**
-     * Publishes an event, triggering the observer chain.
-     *
-     * @param event the event to publish
-     * @param context the event context
-     * @return the accumulated result from the chain
+     * Publishes a BaseEvent, triggering the observer chain.
      */
-    public HookResult publish(HookEvent event, HookContext context) {
-        return publish(event, context, null);
-    }
-
-    /**
-     * Publishes an event with a matcher value for filtering.
-     *
-     * @param event the event to publish
-     * @param context the event context
-     * @param matcherValue the value to match against
-     * @return the accumulated result from the chain
-     */
-    public HookResult publish(HookEvent event, HookContext context, String matcherValue) {
+    public HookResult publish(BaseEvent event) {
         if (disabled) {
-            LOG.debug("Hooks disabled, skipping {}", event);
+            LOG.debug("Hooks disabled, skipping {}", event.getType());
             return HookResult.allow();
         }
 
-        List<HookObserver> registered = observers.get(event);
+        HookEventType eventType = event.getType();
+        List<HookObserver> registered = observers.get(eventType);
+
         if (registered == null || registered.isEmpty()) {
             return HookResult.allow();
         }
 
+        // Get matcher value from event if available
+        String matcherValue = null;
+        if (event instanceof HasMatcherValue) {
+            matcherValue = ((HasMatcherValue) event).getMatcherValue();
+        }
+
         // Filter by matcher and sort by priority
-        List<HookObserver> matchingObservers = registered.stream()
-                .filter(obs -> obs.matches(matcherValue))
-                .sorted(Comparator.comparingInt(HookObserver::getPriority))
-                .collect(Collectors.toList());
+        List<HookObserver> matchingObservers = new ArrayList<>();
+        for (HookObserver obs : registered) {
+            if (obs.matches(matcherValue)) {
+                matchingObservers.add(obs);
+            }
+        }
+        matchingObservers.sort(Comparator.comparingInt(HookObserver::getPriority));
 
         if (matchingObservers.isEmpty()) {
             return HookResult.allow();
         }
 
-        LOG.debug("Executing chain with {} observers for {}", matchingObservers.size(), event);
+        LOG.debug("Executing chain with {} observers for {}", matchingObservers.size(), eventType);
 
         // Create chain context
         ChainContext chainContext = new ChainContext(matcherValue);
@@ -110,16 +100,14 @@ public class HookEventBus {
             }
 
             try {
-                HookResult result = observer.onEvent(event, context, chainContext);
+                HookResult result = observer.onEvent(event, chainContext);
                 chainContext.accumulate(result);
-                chainContext.next();
 
                 LOG.debug("Observer {} returned: allow={}",
                     observer.getClass().getSimpleName(), result.isAllow());
 
             } catch (Exception e) {
                 LOG.error("Observer execution error: {}", e.getMessage());
-                // Continue chain on error, but mark as not allow
                 chainContext.accumulate(HookResult.deny("Hook execution error: " + e.getMessage()));
             }
         }
@@ -127,80 +115,183 @@ public class HookEventBus {
         return chainContext.getAccumulatedResult();
     }
 
-    // Convenience methods for backward compatibility
+    // Convenience methods for new events
+
+    public HookResult executePreToolUse(PreToolUseEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executePostToolUse(PostToolUseEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executePostToolUseFailure(PostToolUseFailureEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executePermissionRequest(PermissionRequestEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeSessionStart(SessionStartEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeSessionEnd(SessionEndEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeStop(StopEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeUserPromptSubmit(UserPromptSubmitEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeNotification(NotificationEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeSubagentStart(SubagentStartEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeSubagentStop(SubagentStopEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeTaskCompleted(TaskCompletedEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeConfigChange(ConfigChangeEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executePreCompact(PreCompactEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeInstructionsLoaded(InstructionsLoadedEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeWorktreeCreate(WorktreeCreateEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeWorktreeRemove(WorktreeRemoveEvent event) {
+        return publish(event);
+    }
+
+    public HookResult executeTeammateIdle(TeammateIdleEvent event) {
+        return publish(event);
+    }
+
+    // ===== New Hook Interface Support =====
 
     /**
-     * Registers a hook for an event (backward compatible method).
+     * Registers a Hook to handle specified events.
      */
-    public void registerHook(HookEvent event, HookHandler handler, String matcher) {
-        HookObserverAdapter adapter = new HookObserverAdapter(handler, event, matcher);
-        subscribe(event, adapter);
+    public void registerHook(Hook hook) {
+        HookEventType[] events = hook.getSubscribedEvents();
+        if (events != null) {
+            for (HookEventType event : events) {
+                HookObserverAdapter adapter = new HookObserverAdapter(hook);
+                subscribe(event, adapter);
+            }
+        }
     }
 
     /**
-     * Registers a hook for an event without matcher (backward compatible method).
+     * Registers a Hook for a specific event type.
      */
-    public void registerHook(HookEvent event, HookHandler handler) {
-        registerHook(event, handler, null);
+    public void registerHook(HookEventType eventType, Hook hook) {
+        HookObserverAdapter adapter = new HookObserverAdapter(hook);
+        subscribe(eventType, adapter);
     }
 
     /**
-     * Functional interface for simple hook handlers.
+     * Registers a Hook for a specific event type with matcher.
      */
-    @FunctionalInterface
-    public interface HookFunction {
-        HookResult apply(HookContext context);
+    public void registerHook(HookEventType eventType, Hook hook, String matcher) {
+        HookObserverAdapter adapter = new HookObserverAdapter(hook, matcher);
+        subscribe(eventType, adapter);
     }
 
     /**
-     * Registers a hook with a simple function (lambda).
-     *
-     * @param event the hook event
-     * @param function the hook function
+     * Registers a HookHandler for a specific event type.
      */
-    public void registerHook(HookEvent event, HookFunction function) {
-        registerHook(event, function, null);
+    public void registerHook(HookEventType eventType, HookHandler handler) {
+        registerHook(eventType, handler, null);
     }
 
     /**
-     * Registers a hook with a simple function (lambda) and matcher.
-     *
-     * @param event the hook event
-     * @param function the hook function
-     * @param matcher the matcher pattern
+     * Registers a HookHandler for a specific event type with matcher.
      */
-    public void registerHook(HookEvent event, HookFunction function, String matcher) {
-        HookHandler handler = new HookHandler() {
+    public void registerHook(HookEventType eventType, HookHandler handler, String matcher) {
+        Hook handlerAdapter = new Hook() {
             @Override
-            public HookResult execute(HookContext context) {
-                return function.apply(context);
+            public HookResult onEvent(BaseEvent event) {
+                return handler.execute(event);
             }
 
             @Override
-            public HookHandlerType getType() {
-                return HookHandlerType.COMMAND;
+            public HookEventType[] getSubscribedEvents() {
+                return new HookEventType[]{ eventType };
             }
 
             @Override
-            public Duration getTimeout() {
-                return Duration.ofSeconds(60);
+            public String getMatcher() {
+                return matcher;
             }
         };
-        registerHook(event, handler, matcher);
+        registerHook(eventType, handlerAdapter);
+    }
+
+    /**
+     * Registers a hook with a lambda function.
+     */
+    public void registerHook(HookEventType eventType, Function<BaseEvent, HookResult> function) {
+        registerHook(eventType, function, null);
+    }
+
+    /**
+     * Registers a hook with a lambda function and matcher.
+     */
+    public void registerHook(HookEventType eventType, Function<BaseEvent, HookResult> function, String matcher) {
+        Hook adapter = new Hook() {
+            @Override
+            public HookResult onEvent(BaseEvent event) {
+                return function.apply(event);
+            }
+
+            @Override
+            public HookEventType[] getSubscribedEvents() {
+                return new HookEventType[]{ eventType };
+            }
+
+            @Override
+            public String getMatcher() {
+                return matcher;
+            }
+        };
+        registerHook(eventType, adapter);
     }
 
     /**
      * Gets all registered observers.
      */
-    public Map<HookEvent, List<HookObserver>> getObservers() {
+    public Map<HookEventType, List<HookObserver>> getObservers() {
         return Collections.unmodifiableMap(observers);
     }
 
     /**
      * Gets observers for a specific event.
      */
-    public List<HookObserver> getObservers(HookEvent event) {
-        List<HookObserver> list = observers.get(event);
+    public List<HookObserver> getObservers(HookEventType eventType) {
+        List<HookObserver> list = observers.get(eventType);
         return list != null ? Collections.unmodifiableList(list) : Collections.emptyList();
     }
 
@@ -213,119 +304,40 @@ public class HookEventBus {
         }
     }
 
-    // Backward compatible execute methods (delegating to publish)
-
-    public HookResult executePreToolUse(PreToolUseContext context) {
-        return publish(HookEvent.PRE_TOOL_USE, context, context.getToolName());
-    }
-
-    public HookResult executePostToolUse(PostToolUseContext context) {
-        return publish(HookEvent.POST_TOOL_USE, context, context.getToolName());
-    }
-
-    public HookResult executePostToolUseFailure(PostToolUseFailureContext context) {
-        return publish(HookEvent.POST_TOOL_USE_FAILURE, context, context.getToolName());
-    }
-
-    public HookResult executePermissionRequest(PermissionRequestContext context) {
-        return publish(HookEvent.PERMISSION_REQUEST, context, context.getToolName());
-    }
-
-    public HookResult executeSessionStart(SessionStartContext context) {
-        return publish(HookEvent.SESSION_START, context, context.getSource());
-    }
-
-    public HookResult executeSessionEnd(SessionEndContext context) {
-        return publish(HookEvent.SESSION_END, context, context.getReason());
-    }
-
-    public HookResult executeStop(StopContext context) {
-        return publish(HookEvent.STOP, context, null);
-    }
-
-    public HookResult executeUserPromptSubmit(UserPromptSubmitContext context) {
-        return publish(HookEvent.USER_PROMPT_SUBMIT, context, null);
-    }
-
-    public HookResult executeNotification(NotificationContext context) {
-        return publish(HookEvent.NOTIFICATION, context, context.getNotificationType());
-    }
-
-    public HookResult executeSubagentStart(SubagentStartContext context) {
-        return publish(HookEvent.SUBAGENT_START, context, context.getAgentType());
-    }
-
-    public HookResult executeSubagentStop(SubagentStopContext context) {
-        return publish(HookEvent.SUBAGENT_STOP, context, context.getAgentType());
-    }
-
-    public HookResult executeTaskCompleted(TaskCompletedContext context) {
-        return publish(HookEvent.TASK_COMPLETED, context, null);
-    }
-
-    public HookResult executeConfigChange(ConfigChangeContext context) {
-        return publish(HookEvent.CONFIG_CHANGE, context, context.getSource());
-    }
-
-    public HookResult executePreCompact(PreCompactContext context) {
-        return publish(HookEvent.PRE_COMPACT, context, context.getTrigger());
-    }
-
-    public HookResult executeInstructionsLoaded(InstructionsLoadedContext context) {
-        return publish(HookEvent.INSTRUCTIONS_LOADED, context, null);
-    }
-
-    public HookResult executeWorktreeCreate(WorktreeCreateContext context) {
-        return publish(HookEvent.WORKTREE_CREATE, context, null);
-    }
-
-    public HookResult executeWorktreeRemove(WorktreeRemoveContext context) {
-        return publish(HookEvent.WORKTREE_REMOVE, context, null);
-    }
-
-    public HookResult executeTeammateIdle(TeammateIdleContext context) {
-        return publish(HookEvent.TEAMMATE_IDLE, context, null);
-    }
-
     /**
-     * Adapter to convert HookHandler to HookObserver.
+     * Adapter to convert Hook to HookObserver.
      */
     static class HookObserverAdapter implements HookObserver {
-        private final HookHandler handler;
-        private final HookEvent[] events;
+        private final Hook hook;
         private final String matcher;
 
-        HookObserverAdapter(HookHandler handler, HookEvent event, String matcher) {
-            this.handler = handler;
-            this.events = new HookEvent[]{event};
+        HookObserverAdapter(Hook hook) {
+            this(hook, null);
+        }
+
+        HookObserverAdapter(Hook hook, String matcher) {
+            this.hook = hook;
             this.matcher = matcher;
         }
 
-        /**
-         * Gets the underlying handler.
-         */
-        public HookHandler getHandler() {
-            return handler;
+        @Override
+        public HookResult onEvent(BaseEvent event, ChainContext chainContext) {
+            return hook.onEvent(event);
         }
 
         @Override
-        public HookResult onEvent(HookEvent event, HookContext context, ChainContext chainContext) {
-            return handler.execute(context);
-        }
-
-        @Override
-        public HookEvent[] getSubscribedEvents() {
-            return events;
+        public HookEventType[] getSubscribedEvents() {
+            return hook.getSubscribedEvents();
         }
 
         @Override
         public String getMatcher() {
-            return matcher;
+            return matcher != null ? matcher : hook.getMatcher();
         }
 
         @Override
         public int getPriority() {
-            return 100;
+            return hook.getPriority();
         }
     }
 
@@ -337,11 +349,11 @@ public class HookEventBus {
     }
 
     public static class Builder {
-        private Map<HookEvent, List<HookObserver>> observers = new HashMap<>();
+        private Map<HookEventType, List<HookObserver>> observers = new HashMap<>();
         private ExecutorService executorService;
         private boolean disabled = false;
 
-        public Builder observers(Map<HookEvent, List<HookObserver>> observers) {
+        public Builder observers(Map<HookEventType, List<HookObserver>> observers) {
             this.observers = observers;
             return this;
         }

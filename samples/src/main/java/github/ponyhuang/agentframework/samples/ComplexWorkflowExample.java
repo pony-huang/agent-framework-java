@@ -3,10 +3,9 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookEventBus;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
+import github.ponyhuang.agentframework.hooks.event.StopEvent;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.hooks.events.StopContext;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
@@ -32,9 +31,9 @@ public class ComplexWorkflowExample {
                 .name("Router")
                 .instructions("You are a router. Analyze the user's input. If it is about programming or technology, reply with 'TECH'. Otherwise, reply with 'GENERAL'. Do not add any other text.")
                 .client(client)
-                .hook(HookEvent.STOP, context -> {
-                    if (context instanceof StopContext stopContext) {
-                        String text = stopContext.getLastAssistantMessage();
+                .hook(HookEventType.STOP, event -> {
+                    if (event instanceof StopEvent stopEvent) {
+                        String text = stopEvent.getLastAssistantMessage();
                         if (text != null) {
                             text = text.toUpperCase();
                             if (text.contains("TECH")) {

@@ -1,5 +1,8 @@
 package github.ponyhuang.agentframework.hooks;
 
+import github.ponyhuang.agentframework.hooks.event.BaseEvent;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
+
 /**
  * Observer interface for hook events.
  * Implementations can subscribe to specific events and handle them in the chain.
@@ -9,21 +12,20 @@ public interface HookObserver {
     /**
      * Called when a subscribed event is published.
      *
-     * @param event the event type
-     * @param context the event context
+     * @param event the event
      * @param chainContext the chain context for accumulating results
      * @return the hook result
      */
-    HookResult onEvent(HookEvent event, HookContext context, ChainContext chainContext);
+    HookResult onEvent(BaseEvent event, ChainContext chainContext);
 
     /**
      * Returns the events this observer subscribes to.
-     * Default implementation returns empty array, subclasses should override.
+     * Default implementation returns null (all events), subclasses should override.
      *
      * @return array of subscribed events
      */
-    default HookEvent[] getSubscribedEvents() {
-        return new HookEvent[0];
+    default HookEventType[] getSubscribedEvents() {
+        return null;
     }
 
     /**

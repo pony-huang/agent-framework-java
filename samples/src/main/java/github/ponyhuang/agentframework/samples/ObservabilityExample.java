@@ -3,7 +3,7 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
 import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.observability.TracingHookHandler;
 import github.ponyhuang.agentframework.types.message.UserMessage;
@@ -30,10 +30,10 @@ public class ObservabilityExample {
                 .name("ObservableAgent")
                 .instructions("You are a helpful assistant.")
                 .client(client)
-                .hook(HookEvent.SESSION_START, handler)
-                .hook(HookEvent.STOP, handler)
-                .hook(HookEvent.PRE_TOOL_USE, handler)
-                .hook(HookEvent.POST_TOOL_USE, handler)
+                .hook(HookEventType.SESSION_START, handler)
+                .hook(HookEventType.STOP, handler)
+                .hook(HookEventType.PRE_TOOL_USE, handler)
+                .hook(HookEventType.POST_TOOL_USE, handler)
                 .build();
 
         System.out.println("Starting observable agent run...");

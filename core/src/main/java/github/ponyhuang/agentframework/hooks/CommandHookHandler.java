@@ -1,6 +1,7 @@
 package github.ponyhuang.agentframework.hooks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import github.ponyhuang.agentframework.hooks.event.BaseEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,9 +43,9 @@ public class CommandHookHandler implements HookHandler {
     }
 
     @Override
-    public HookResult execute(HookContext context) {
+    public HookResult execute(BaseEvent event) {
         try {
-            String jsonInput = MAPPER.writeValueAsString(context.toMap());
+            String jsonInput = MAPPER.writeValueAsString(event.toMap());
 
             if (async) {
                 return executeAsync(jsonInput);

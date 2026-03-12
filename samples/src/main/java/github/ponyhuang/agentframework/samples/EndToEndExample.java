@@ -3,10 +3,9 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookEventBus;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
+import github.ponyhuang.agentframework.hooks.event.UserPromptSubmitEvent;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.hooks.events.UserPromptSubmitContext;
 import github.ponyhuang.agentframework.observability.TracingHookHandler;
 import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.ConversationSession;
@@ -56,13 +55,13 @@ public class EndToEndExample {
         OpenTelemetry openTelemetry = initOpenTelemetry();
         Tracer tracer = openTelemetry.getTracer("com.example.agentframework");
         TracingHookHandler handler = new TracingHookHandler(tracer);
-        HookEventBus.HookFunction userPromptSubmit = context -> {
-            UserPromptSubmitContext promptContext =
-                    (UserPromptSubmitContext) context;
-            String text = promptContext.getPrompt();
-            if (text != null && text.contains("@")) {
-                text = text.replaceAll("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b", "[EMAIL_REDACTED]");
-                promptContext.setPrompt(text);
+        java.util.function.Function<github.ponyhuang.agentframework.hooks.event.BaseEvent, HookResult> userPromptSubmit = event -> {
+            if (event instanceof UserPromptSubmitEvent promptEvent) {
+                String text = promptEvent.getPrompt();
+                if (text != null && text.contains("@")) {
+                    text = text.replaceAll("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b", "[EMAIL_REDACTED]");
+                    promptEvent.setPrompt(text);
+                }
             }
             return HookResult.allow();
         };
@@ -83,22 +82,22 @@ public class EndToEndExample {
                 .name("TriageAgent")
                 .instructions("Classify user intent into: REFUND, TECH_SUPPORT, or GENERAL. Reply ONLY with the category.")
                 .client(client)
-                .hook(HookEvent.USER_PROMPT_SUBMIT, userPromptSubmit)
-                .hook(HookEvent.SESSION_START, handler)
-                .hook(HookEvent.STOP, handler)
-                .hook(HookEvent.PRE_TOOL_USE, handler)
-                .hook(HookEvent.POST_TOOL_USE, handler)
+                .hook(HookEventType.USER_PROMPT_SUBMIT, userPromptSubmit)
+                .hook(HookEventType.SESSION_START, handler)
+                .hook(HookEventType.STOP, handler)
+                .hook(HookEventType.PRE_TOOL_USE, handler)
+                .hook(HookEventType.POST_TOOL_USE, handler)
                 .build();
 
         Agent financeAgent = AgentBuilder.builder()
                 .name("FinanceAgent")
                 .instructions("You are a finance specialist. Help with refunds.")
                 .client(client)
-                .hook(HookEvent.USER_PROMPT_SUBMIT, userPromptSubmit)
-                .hook(HookEvent.SESSION_START, handler)
-                .hook(HookEvent.STOP, handler)
-                .hook(HookEvent.PRE_TOOL_USE, handler)
-                .hook(HookEvent.POST_TOOL_USE, handler)
+                .hook(HookEventType.USER_PROMPT_SUBMIT, userPromptSubmit)
+                .hook(HookEventType.SESSION_START, handler)
+                .hook(HookEventType.STOP, handler)
+                .hook(HookEventType.PRE_TOOL_USE, handler)
+                .hook(HookEventType.POST_TOOL_USE, handler)
                 .contextProvider(userProfileProvider)
                 .build();
 
@@ -106,11 +105,11 @@ public class EndToEndExample {
                 .name("TechAgent")
                 .instructions("You are a technical support engineer.")
                 .client(client)
-                .hook(HookEvent.USER_PROMPT_SUBMIT, userPromptSubmit)
-                .hook(HookEvent.SESSION_START, handler)
-                .hook(HookEvent.STOP, handler)
-                .hook(HookEvent.PRE_TOOL_USE, handler)
-                .hook(HookEvent.POST_TOOL_USE, handler)
+                .hook(HookEventType.USER_PROMPT_SUBMIT, userPromptSubmit)
+                .hook(HookEventType.SESSION_START, handler)
+                .hook(HookEventType.STOP, handler)
+                .hook(HookEventType.PRE_TOOL_USE, handler)
+                .hook(HookEventType.POST_TOOL_USE, handler)
                 .contextProvider(userProfileProvider)
                 .build();
 
@@ -118,11 +117,11 @@ public class EndToEndExample {
                 .name("GeneralAgent")
                 .instructions("You are a general assistant.")
                 .client(client)
-                .hook(HookEvent.USER_PROMPT_SUBMIT, userPromptSubmit)
-                .hook(HookEvent.SESSION_START, handler)
-                .hook(HookEvent.STOP, handler)
-                .hook(HookEvent.PRE_TOOL_USE, handler)
-                .hook(HookEvent.POST_TOOL_USE, handler)
+                .hook(HookEventType.USER_PROMPT_SUBMIT, userPromptSubmit)
+                .hook(HookEventType.SESSION_START, handler)
+                .hook(HookEventType.STOP, handler)
+                .hook(HookEventType.PRE_TOOL_USE, handler)
+                .hook(HookEventType.POST_TOOL_USE, handler)
                 .contextProvider(userProfileProvider)
                 .build();
 

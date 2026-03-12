@@ -3,11 +3,10 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.hooks.HookEvent;
-import github.ponyhuang.agentframework.hooks.HookEventBus;
+import github.ponyhuang.agentframework.hooks.event.HookEventType;
+import github.ponyhuang.agentframework.hooks.event.SubagentStartEvent;
+import github.ponyhuang.agentframework.hooks.event.SubagentStopEvent;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.hooks.events.SubagentStartContext;
-import github.ponyhuang.agentframework.hooks.events.SubagentStopContext;
 import github.ponyhuang.agentframework.orchestrations.GroupChatAgentBuilder;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
@@ -25,88 +24,52 @@ public class GroupChatMigrationExample {
     public static void main(String[] args) {
         ChatClient client = ClientExample.openAIChatClient();
 
-        HookEventBus.HookFunction subStop0 = context -> {
-            if (context instanceof SubagentStopContext stopContext) {
-                System.out.println("\n[Agent]: " + stopContext.getLastAssistantMessage());
+        Function<github.ponyhuang.agentframework.hooks.event.BaseEvent, HookResult> subStop0 = event -> {
+            if (event instanceof SubagentStopEvent stopEvent) {
+                System.out.println("\n[Agent]: " + stopEvent.getLastAssistantMessage());
             }
             return HookResult.allow();
         };
 
-        HookEventBus.HookFunction subStart = context -> {
-            if (context instanceof SubagentStartContext startContext) {
-                System.out.println("\n[Subagent Start]: " + startContext.getAgentId());
+        Function<github.ponyhuang.agentframework.hooks.event.BaseEvent, HookResult> subStart = event -> {
+            if (event instanceof SubagentStartEvent startEvent) {
+                System.out.println("\n[Subagent Start]: " + startEvent.getAgentId());
             }
             return HookResult.allow();
         };
 
-        HookEventBus.HookFunction subStop = context -> {
-            if (context instanceof SubagentStopContext stopContext) {
-                System.out.println("[Subagent Stop]: " + stopContext.getAgentId());
+        Function<github.ponyhuang.agentframework.hooks.event.BaseEvent, HookResult> subStop = event -> {
+            if (event instanceof SubagentStopEvent stopEvent) {
+                System.out.println("[Subagent Stop]: " + stopEvent.getAgentId());
             }
             return HookResult.allow();
         };
 
         Agent expert = AgentBuilder.builder()
                 .name("PythonExpert")
-                .instructions("You are an expert in Python. Answer questions and refine your answer based on feedback.")
+                .instructions("You are a Python expert.")
                 .client(client)
-                .hook(HookEvent.SUBAGENT_STOP, subStop0)
-                .hook(HookEvent.SUBAGENT_STOP, subStart)
-                .hook(HookEvent.SUBAGENT_STOP, subStop)
+                .hook(HookEventType.SUBAGENT_STOP, subStop)
                 .build();
 
-        Agent verifier = AgentBuilder.builder()
-                .name("AnswerVerifier")
-                .instructions("You are a programming expert. Review the answer from PythonExpert. Point out dangerous statements. If good, say 'The answer looks good to me.'")
+        Agent general = AgentBuilder.builder()
+                .name("GeneralAssistant")
+                .instructions("You are a general assistant.")
                 .client(client)
-                .hook(HookEvent.SUBAGENT_STOP, subStop0)
-                .hook(HookEvent.SUBAGENT_STOP, subStart)
-                .hook(HookEvent.SUBAGENT_STOP, subStop)
+                .hook(HookEventType.SUBAGENT_STOP, subStop0)
                 .build();
 
-        Agent clarifier = AgentBuilder.builder()
-                .name("AnswerClarifier")
-                .instructions("You are an accessibility expert. Review the answer for clarity. Point out jargon. If clear, say 'The answer looks clear to me.'")
-                .client(client)
-                .hook(HookEvent.SUBAGENT_STOP, subStop0)
-                .hook(HookEvent.SUBAGENT_STOP, subStart)
-                .hook(HookEvent.SUBAGENT_STOP, subStop)
-                .build();
-
-        Agent skeptic = AgentBuilder.builder()
-                .name("Skeptic")
-                .instructions("You are a devil's advocate. Point out caveats and exceptions. If satisfied, say 'I have no further questions.'")
-                .client(client)
-                .hook(HookEvent.SUBAGENT_STOP, subStop0)
-                .hook(HookEvent.SUBAGENT_STOP, subStart)
-                .hook(HookEvent.SUBAGENT_STOP, subStop)
-                .build();
-
-        List<Agent> participants = List.of(expert, verifier, clarifier, skeptic);
-
-        Function<List<Message>, Agent> roundRobinSelector = new Function<>() {
-            private int index = 0;
-
-            @Override
-            public Agent apply(List<Message> messages) {
-                Agent next = participants.get(index % participants.size());
-                index++;
-                return next;
-            }
-        };
 
         GroupChatAgentBuilder groupChat = new GroupChatAgentBuilder()
                 .participant(expert)
-                .participant(verifier)
-                .participant(clarifier)
-                .participant(skeptic)
-                .selectionStrategy(roundRobinSelector)
+                .participant(general)
                 .maxTurns(6);
 
-        System.out.println("Starting Group Chat: 'How does Python's Protocol differ from abstract base classes?'\n");
-
-        ChatResponse result = groupChat.execute("How does Python's Protocol differ from abstract base classes?");
-
-        System.out.println("\nGroup Chat Finished.");
+        // Run the group chat
+        String input = "Hello, can you help me with Python? And also tell me a joke.";
+        System.out.println("User: " + input);
+        ChatResponse response = groupChat.execute(input);
+        System.out.println("\n=== Response ===");
+        System.out.println(response.getMessage().getTextContent());
     }
 }

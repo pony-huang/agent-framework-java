@@ -4,13 +4,12 @@ import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.BaseAgent;
 import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookResult;
-import github.ponyhuang.agentframework.hooks.events.SubagentStartContext;
-import github.ponyhuang.agentframework.hooks.events.SubagentStopContext;
+import github.ponyhuang.agentframework.hooks.event.SubagentStartEvent;
+import github.ponyhuang.agentframework.hooks.event.SubagentStopEvent;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
-import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.function.Function;
@@ -116,12 +115,12 @@ public class GroupChatAgentBuilder {
 
             // Fire SubagentStart
             if (hookEventBus != null) {
-                SubagentStartContext startContext = new SubagentStartContext();
-                startContext.setAgentId(currentSpeaker.getName());
-                startContext.setAgentType("group_chat_participant");
-                startContext.setCwd(System.getProperty("user.dir"));
-                startContext.setPermissionMode("default");
-                HookResult result = hookEventBus.executeSubagentStart(startContext);
+                SubagentStartEvent event = new SubagentStartEvent();
+                event.setAgentId(currentSpeaker.getName());
+                event.setAgentType("group_chat_participant");
+                event.setCwd(System.getProperty("user.dir"));
+                event.setPermissionMode("default");
+                HookResult result = hookEventBus.executeSubagentStart(event);
                 if (!result.isAllow()) {
                     System.out.println("SubagentStart hook blocked agent: " + currentSpeaker.getName());
                     // Skip this turn or handle blocking
@@ -144,15 +143,15 @@ public class GroupChatAgentBuilder {
 
             // Fire SubagentStop
             if (hookEventBus != null) {
-                SubagentStopContext stopContext = new SubagentStopContext();
-                stopContext.setAgentId(currentSpeaker.getName());
-                stopContext.setAgentType("group_chat_participant");
+                SubagentStopEvent event = new SubagentStopEvent();
+                event.setAgentId(currentSpeaker.getName());
+                event.setAgentType("group_chat_participant");
                 if (response.getMessage() != null) {
-                    stopContext.setLastAssistantMessage(getMessageText(response.getMessage()));
+                    event.setLastAssistantMessage(getMessageText(response.getMessage()));
                 }
-                stopContext.setCwd(System.getProperty("user.dir"));
-                stopContext.setPermissionMode("default");
-                hookEventBus.executeSubagentStop(stopContext);
+                event.setCwd(System.getProperty("user.dir"));
+                event.setPermissionMode("default");
+                hookEventBus.executeSubagentStop(event);
             }
 
             if (response.getMessage() != null) {

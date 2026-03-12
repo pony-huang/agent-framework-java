@@ -1,10 +1,10 @@
-package github.ponyhuang.agentframework.hooks;
+package github.ponyhuang.agentframework.hooks.event;
 
 /**
- * Enum representing all hook events in the agent lifecycle.
+ * Enumeration of all hook event types in the agent lifecycle.
  * Matches Claude Code's hook event system.
  */
-public enum HookEvent {
+public enum HookEventType {
     // Session events
     SESSION_START("SessionStart"),
     SESSION_END("SessionEnd"),
@@ -45,7 +45,7 @@ public enum HookEvent {
 
     private final String eventName;
 
-    HookEvent(String eventName) {
+    HookEventType(String eventName) {
         this.eventName = eventName;
     }
 
@@ -59,13 +59,13 @@ public enum HookEvent {
     }
 
     /**
-     * Finds a HookEvent by its event name.
+     * Finds a HookEventType by its event name.
      *
      * @param eventName the event name
-     * @return the matching HookEvent, or null if not found
+     * @return the matching HookEventType, or null if not found
      */
-    public static HookEvent fromEventName(String eventName) {
-        for (HookEvent event : values()) {
+    public static HookEventType fromEventName(String eventName) {
+        for (HookEventType event : values()) {
             if (event.eventName.equals(eventName)) {
                 return event;
             }
