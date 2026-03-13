@@ -4,12 +4,17 @@ import github.ponyhuang.agentframework.sessions.AgentSession;
 import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;
 import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
+import github.ponyhuang.agentframework.tools.builtins.FileSystemTools;
+import github.ponyhuang.agentframework.tools.builtins.SystemTools;
+import github.ponyhuang.agentframework.tools.builtins.TaskDoneTool;
+import github.ponyhuang.agentframework.tools.builtins.TaskTools;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
-import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
+import github.ponyhuang.agentframework.types.message.SystemMessage;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
@@ -33,24 +38,70 @@ import java.util.*;
  */
 public class LoopAgent extends BaseAgent {
 
-    /**
-     * Default tool name for signaling task completion.
-     */
-    public static final String TASK_DONE_TOOL_NAME = "task_done";
+    public static final String DEFAULT_SYSTEM_PROMPT = """
+            You are Code Agent, an AI-powered software engineering assistant.
+
+            You are helpful, harmless, and honest. Your goal is to assist users with software development tasks
+            including writing code, fixing bugs, refactoring, and performing code reviews.
+
+            ## Available Tools
+
+            You have access to the following tools to accomplish your tasks:
+
+            ### File Operations
+            - **read**: Read file contents
+            - **readRange**: Read specific line range from a file
+            - **write**: Create or overwrite a file
+            - **edit**: Replace text in a file
+            - **glob**: Find files matching a pattern
+
+            ### Shell Commands
+            - **bash**: Execute shell commands
+            - **bashWithTimeout**: Execute with timeout
+            - **bashDetailed**: Execute and get detailed result
+
+            ### Task Management
+            - **create**: Create a new task
+            - **createWithOptions**: Create task with full options
+            - **update**: Update an existing task
+            - **list**: List all tasks
+            - **get**: Get a task by ID
+            - **delete**: Delete a task
+
+            ### System
+            - **askUser**: Ask questions to the user
+            - **planMode**: Enter planning mode
+
+            ### Completion
+            - **task_done**: Signal task completion when the work is finished
+
+            ## Working Directory
+
+            All file operations and shell commands operate relative to the working directory specified by the user.
+
+            ## Guidelines
+
+            1. Always verify your changes work correctly before marking a task as complete
+            2. Use appropriate tools to explore the codebase before making changes
+            3. Provide clear, actionable feedback to users
+            4. When unsure, ask clarifying questions
+            5. Follow best practices for code quality and security
+
+            ## Task Completion
+
+            When you believe the task is complete, call the task_done tool with a summary of what was accomplished.
+            If there are remaining issues or the task cannot be completed, explain why.
+            """;
 
     private static final int DEFAULT_MAX_STEPS = 10;
 
     private final ToolExecutor toolExecutor;
     private final int maxSteps;
-    private final LoopTerminationHandler terminationHandler;
-    private final boolean useBuiltinTaskDone;
 
     protected LoopAgent(Builder builder) {
         super(builder);
         this.toolExecutor = builder.toolExecutor;
         this.maxSteps = builder.maxSteps;
-        this.terminationHandler = builder.terminationHandler;
-        this.useBuiltinTaskDone = builder.useBuiltinTaskDone;
     }
 
     @Override
@@ -60,7 +111,9 @@ public class LoopAgent extends BaseAgent {
 
     @Override
     protected Flux<Message> doRun(List<Message> messages, Map<String, Object> options) {
+        Message systemMessage = SystemMessage.create().withText(DEFAULT_SYSTEM_PROMPT);
         List<Message> conversationMessages = new ArrayList<>(messages);
+        conversationMessages.add(0, systemMessage);
         int currentStep = 0;
 
         while (currentStep < maxSteps) {
@@ -116,18 +169,6 @@ public class LoopAgent extends BaseAgent {
 
             LOG.info("Executing tool: {}", functionName);
 
-            // Handle built-in task_done tool
-            if (useBuiltinTaskDone && TASK_DONE_TOOL_NAME.equals(functionName)) {
-                LOG.info("Task completed at step {} with result: {}", currentStep, functionArgs);
-                // Create an assistant message with the final result
-                String finalResult = functionArgs != null && functionArgs.containsKey("result")
-                        ? functionArgs.get("result").toString()
-                        : "Task completed successfully";
-                Message completionMessage = AssistantMessage.create(finalResult);
-                conversationMessages.add(completionMessage);
-                return Flux.fromIterable(conversationMessages);
-            }
-
             // Execute tool
             Object toolResult;
             try {
@@ -141,43 +182,45 @@ public class LoopAgent extends BaseAgent {
                 toolResult = "Error: " + e.getMessage();
             }
 
-            // Check for termination
-            if (terminationHandler != null && terminationHandler.shouldTerminate(functionName, functionArgs, toolResult)) {
-                LOG.info("Termination handler signaled stop at step {}", currentStep);
-                return Flux.fromIterable(conversationMessages);
-            }
-
-            // Check for built-in task_done tool when terminationHandler is null
-            if (useBuiltinTaskDone && terminationHandler == null && TASK_DONE_TOOL_NAME.equals(functionName)) {
-                LOG.info("Task completed at step {} with result: {}", currentStep, toolResult);
-                String finalResult = toolResult != null ? toolResult.toString() : "Task completed successfully";
-                Message completionMessage = AssistantMessage.create(finalResult);
+            // Check for task_done signal
+            String resultStr = toolResult != null ? toolResult.toString() : "";
+            if (TaskDoneTool.isTaskComplete(resultStr)) {
+                LOG.info("Task completed at step {}", currentStep);
+                String message = TaskDoneTool.extractMessage(resultStr);
+                Message completionMessage = AssistantMessage.create(message);
                 conversationMessages.add(completionMessage);
                 return Flux.fromIterable(conversationMessages);
             }
 
-            // Add tool result message
-            String resultStr = toolResult != null ? toolResult.toString() : "null";
+
+            // Add tool result message (for non-task_done results)
             Message toolMessage = ResultMessage.create(toolCallId, resultStr);
             conversationMessages.add(toolMessage);
         }
 
         LOG.warn("Max steps reached: {}", maxSteps);
 
-        // Return last response
-        if (conversationMessages.size() > messages.size()) {
-            ChatResponse finalResponse = client.chat(ChatCompleteParams.builder()
-                    .messages(conversationMessages)
-                    .build());
-            List<Message> allMessages = new ArrayList<>(conversationMessages);
-            if (finalResponse.getMessage() != null) {
-                allMessages.add(finalResponse.getMessage());
-            }
-            return Flux.fromIterable(allMessages);
-        }
+        // Make a final summary request to the LLM
+        String summaryPrompt = """
+            The maximum number of steps has been reached. Please provide a summary of the work completed so far,
+            including what has been accomplished and what remains to be done. Be concise but informative.
+            """;
 
-        Message maxStepsMessage = AssistantMessage.create("Maximum steps reached without task completion.");
-        return Flux.just(maxStepsMessage);
+        // Add a user message asking for summary
+        Message summaryRequest = github.ponyhuang.agentframework.types.message.UserMessage.create(summaryPrompt);
+        List<Message> summaryMessages = new ArrayList<>(conversationMessages);
+        summaryMessages.add(summaryRequest);
+
+        // Call LLM without tools for summary
+        ChatResponse summaryResponse = client.chat(ChatCompleteParams.builder()
+                .messages(summaryMessages)
+                .build());
+
+        List<Message> allMessages = new ArrayList<>(conversationMessages);
+        if (summaryResponse.getMessage() != null) {
+            allMessages.add(summaryResponse.getMessage());
+        }
+        return Flux.fromIterable(allMessages);
     }
 
     /**
@@ -194,21 +237,6 @@ public class LoopAgent extends BaseAgent {
         return new Builder();
     }
 
-    /**
-     * Handler for determining when the loop should terminate early.
-     */
-    @FunctionalInterface
-    public interface LoopTerminationHandler {
-        /**
-         * Determine if the loop should terminate.
-         *
-         * @param functionName the function that was called
-         * @param arguments    the function arguments
-         * @param result       the function result
-         * @return true if should terminate, false to continue
-         */
-        boolean shouldTerminate(String functionName, Map<String, Object> arguments, Object result);
-    }
 
     /**
      * Builder for LoopAgent.
@@ -217,8 +245,18 @@ public class LoopAgent extends BaseAgent {
 
         private ToolExecutor toolExecutor;
         private int maxSteps = DEFAULT_MAX_STEPS;
-        private LoopTerminationHandler terminationHandler;
-        private boolean useBuiltinTaskDone = true; // Default enabled
+        private String workingDirectory = System.getProperty("user.dir");
+
+        /**
+         * Sets the working directory for file system and shell operations.
+         *
+         * @param workingDirectory the directory path
+         * @return this builder
+         */
+        public Builder workingDirectory(String workingDirectory) {
+            this.workingDirectory = workingDirectory;
+            return this;
+        }
 
         /**
          * Adds a tool to the agent by registering an instance with @Tool annotated methods.
@@ -233,16 +271,6 @@ public class LoopAgent extends BaseAgent {
                     this.toolExecutor = new ToolExecutor();
                 }
                 this.toolExecutor.registerAnnotated(toolInstance);
-                // Add tool schema to the tools list
-                for (Map<String, Object> schema : this.toolExecutor.getToolSchemas()) {
-                    if (tools == null) {
-                        tools = new ArrayList<>();
-                    }
-                    // Avoid duplicates
-                    if (!tools.contains(schema)) {
-                        tools.add(schema);
-                    }
-                }
             }
             return this;
         }
@@ -262,70 +290,60 @@ public class LoopAgent extends BaseAgent {
             return this;
         }
 
+        /**
+         * Sets the ToolExecutor directly for more control.
+         *
+         * @param toolExecutor the tool executor
+         * @return this builder
+         */
+        public Builder toolExecutor(ToolExecutor toolExecutor) {
+            this.toolExecutor = toolExecutor;
+            return this;
+        }
+
         public Builder maxSteps(int maxSteps) {
             this.maxSteps = maxSteps;
             return this;
         }
 
-        public Builder terminationHandler(LoopTerminationHandler terminationHandler) {
-            this.terminationHandler = terminationHandler;
-            return this;
-        }
-
-        /**
-         * Enable or disable the built-in task_done tool for signaling task completion.
-         * Default is enabled.
-         *
-         * @param useBuiltinTaskDone true to enable, false to disable
-         * @return this builder
-         */
-        public Builder useBuiltinTaskDone(boolean useBuiltinTaskDone) {
-            this.useBuiltinTaskDone = useBuiltinTaskDone;
-            return this;
-        }
-
         @Override
         public LoopAgent build() {
-            // Add built-in task_done tool schema if enabled
-            if (useBuiltinTaskDone) {
-                addBuiltinTaskDoneTool();
+            // Initialize built-in tools with working directory
+            TaskTools taskTools = new TaskTools();
+            SystemTools systemTools = new SystemTools(workingDirectory);
+            FileSystemTools fileSystemTools = new FileSystemTools(workingDirectory);
+            TaskDoneTool taskDoneTool = new TaskDoneTool();
+
+            // Register built-in tools to tool executor
+            if (this.toolExecutor == null) {
+                this.toolExecutor = new ToolExecutor();
             }
+            this.toolExecutor
+                    .registerAnnotated(taskTools)
+                    .registerAnnotated(systemTools)
+                    .registerAnnotated(fileSystemTools)
+                    .registerAnnotated(taskDoneTool);
+
+            // Add all tool schemas to the tools list
+            for (Map<String, Object> schema : this.toolExecutor.getToolSchemas()) {
+                if (tools == null) {
+                    tools = new ArrayList<>();
+                }
+                if (!tools.contains(schema)) {
+                    tools.add(schema);
+                }
+            }
+
             return new LoopAgent(this);
         }
 
         /**
-         * Adds the built-in task_done tool schema to the tools list.
+         * Gets the tool executor (for testing or advanced usage).
+         *
+         * @return the tool executor
          */
-        private void addBuiltinTaskDoneTool() {
-            if (tools == null) {
-                tools = new ArrayList<>();
-            }
-
-            // Check if task_done already exists
-            boolean exists = tools.stream()
-                    .anyMatch(schema -> TASK_DONE_TOOL_NAME.equals(schema.get("name")));
-
-            if (!exists) {
-                Map<String, Object> taskDoneSchema = new LinkedHashMap<>();
-                taskDoneSchema.put("type", "function");
-                taskDoneSchema.put("name", TASK_DONE_TOOL_NAME);
-                taskDoneSchema.put("description", "Signals that the task has been completed. Call this tool when the user task is done. "
-                        + "The agent should pass the final result or summary as the 'result' parameter.");
-
-                Map<String, Object> parameters = new LinkedHashMap<>();
-                parameters.put("type", "object");
-                parameters.put("properties", Map.of(
-                        "result", Map.of(
-                                "type", "string",
-                                "description", "The final result or summary of the completed task"
-                        )
-                ));
-                parameters.put("required", List.of("result"));
-                taskDoneSchema.put("parameters", parameters);
-
-                tools.add(taskDoneSchema);
-                LOG.debug("Built-in task_done tool added to agent");
-            }
+        public ToolExecutor getToolExecutor() {
+            return toolExecutor;
         }
     }
 }

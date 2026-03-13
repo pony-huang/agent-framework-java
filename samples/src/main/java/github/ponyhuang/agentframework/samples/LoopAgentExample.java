@@ -2,12 +2,11 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.LoopAgent;
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.tools.Tool;
+import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
-import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -17,20 +16,16 @@ import java.util.List;
 public class LoopAgentExample {
 
     public static void main(String[] args) {
-        // Create tool instance
         CalculatorTool calculator = new CalculatorTool();
 
-        // Create chat client
         ChatClient client = ClientExample.openAIChatClient();
 
-        // Build LoopAgent with custom termination handler using simplified API
         LoopAgent agent = LoopAgent.builder()
                 .name("calculator-assistant")
                 .instructions("You are a helpful assistant that uses the calculator tool for math operations.")
                 .client(client)
                 .tool(calculator)
                 .maxSteps(5)
-                .terminationHandler((fnName, fnArgs, result) -> "task_done".equals(fnName))
                 .build();
 
         // Run the agent
@@ -41,7 +36,7 @@ public class LoopAgentExample {
         ChatResponse response = agent.run(messages, new java.util.HashMap<>());
 
         System.out.println("=== Final Response ===");
-        System.out.println(response.getMessage().getTextContent());
+        System.out.println(response.getLastMessage().getTextContent());
 
         // Also demonstrate using session
         System.out.println("\n=== Using Session ===");
@@ -49,7 +44,7 @@ public class LoopAgentExample {
         session.addMessage(UserMessage.create("What is 100 divided by 4?"));
         List<Message> sessionMessages = session.runStream(session, UserMessage.create("What is 100 divided by 4?")).collectList().block();
         ChatResponse sessionResponse = ChatResponse.builder().messages(sessionMessages).build();
-        System.out.println(sessionResponse.getMessage().getTextContent());
+        System.out.println(sessionResponse.getLastMessage().getTextContent());
     }
 
     /**

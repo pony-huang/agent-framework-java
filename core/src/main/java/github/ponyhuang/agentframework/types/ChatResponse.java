@@ -79,8 +79,21 @@ public class ChatResponse {
         return messages.get(0);
     }
 
+    /**
+     * Gets the last message from the response.
+     * This is typically the final assistant response.
+     *
+     * @return the last message, or null if none
+     */
+    public Message getLastMessage() {
+        if (messages == null || messages.isEmpty()) {
+            return null;
+        }
+        return messages.get(messages.size() - 1);
+    }
+
     public Message getMessage() {
-        return getFirstMessage();
+        return getLastMessage();
     }
 
     public AssistantMessage getAssistantMessage() {
