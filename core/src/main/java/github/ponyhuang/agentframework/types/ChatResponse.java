@@ -145,8 +145,7 @@ public class ChatResponse {
         Map<String, Object> result = new HashMap<>();
         result.put("role", msg.getRoleAsString());
 
-        if (msg instanceof AssistantMessage) {
-            AssistantMessage assistantMsg = (AssistantMessage) msg;
+        if (msg instanceof AssistantMessage assistantMsg) {
             if (assistantMsg.hasFunctionCall()) {
                 Map<String, Object> functionCall = new HashMap<>();
                 functionCall.put("name", assistantMsg.getFunctionName());
@@ -157,8 +156,7 @@ public class ChatResponse {
             if (assistantMsg.getTextContent() != null && !assistantMsg.getTextContent().isEmpty()) {
                 result.put("content", assistantMsg.getTextContent());
             }
-        } else if (msg instanceof ResultMessage) {
-            ResultMessage resultMsg = (ResultMessage) msg;
+        } else if (msg instanceof ResultMessage resultMsg) {
             result.put("tool_call_id", resultMsg.getToolCallId());
             result.put("content", resultMsg.getResultContent());
         } else {

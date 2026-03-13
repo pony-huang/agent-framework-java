@@ -73,7 +73,7 @@ public class ChainContext {
             this.accumulatedResult.setSystemMessage(result.getSystemMessage());
         }
 
-        // Apply suppress output
+        // Apply to suppress output
         if (result.isSuppressOutput()) {
             this.accumulatedResult.setSuppressOutput(true);
         }
