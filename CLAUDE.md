@@ -16,7 +16,6 @@ This project uses a multi-module Gradle structure:
 |--------|-------------|
 | **core** | Main framework with all source code |
 | **samples** | Example code demonstrating usage |
-| **code-agent-java** | Complete Trae Agent implementation demo |
 | **agui** | AGUI (Agent Graphical User Interface) integration with agent-framework |
 | **agui-core** | Core AGUI components - event system, message types, agent interfaces |
 | **agui-example** | Vert.x-based web server example with frontend |

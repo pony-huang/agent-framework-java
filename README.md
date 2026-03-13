@@ -12,7 +12,6 @@ Java port of [Microsoft Agent Framework](https://github.com/microsoft/agent-fram
 |--------|-------------|
 | **core** | Main framework - agents, clients, tools, middleware, sessions, workflows, MCP, orchestrations |
 | **samples** | Example code |
-| **trae-agent-java** | Trae Agent implementation demo |
 | **agui** | AGUI integration with agent-framework |
 | **agui-core** | AGUI core - events, messages, agent interfaces |
 | **agui-example** | Vert.x web server example |

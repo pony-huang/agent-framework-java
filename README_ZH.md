@@ -4,7 +4,7 @@
 
 > **重要**: 此项目仅供**学习使用**,请勿用于生产环境.
 
-[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) 的 Java 移植版 - 构建与 LLM 交互的 AI Agent 框架。
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) 的 Java 学习版 - 构建与 LLM 交互的 AI Agent 框架。
 
 ## 模块
 
@@ -12,7 +12,6 @@
 |------|------|
 | **core** | 核心框架 - agents, clients, tools, middleware, sessions, workflows, MCP, orchestrations |
 | **samples** | 示例代码 |
-| **trae-agent-java** | Trae Agent 实现示例 |
 | **agui** | AGUI 与 agent-framework 集成 |
 | **agui-core** | AGUI 核心 - events, messages, agent interfaces |
 | **agui-example** | Vert.x Web 服务器示例 |
