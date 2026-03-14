@@ -19,9 +19,30 @@ public interface Session {
 
     void clearHistory();
 
+    // Lifecycle
+    void start();
+
+    void end();
+
+    boolean isActive();
+
+    // Metadata
     Map<String, Object> getMetadata();
 
     void setMetadata(String key, Object value);
 
     Object getMetadata(String key);
+
+    // Configuration
+    void setTimeoutMs(long timeoutMs);
+
+    void setMaxMessages(int maxMessages);
+
+    long getTimeoutMs();
+
+    int getMaxMessages();
+
+    long getLastActiveTime();
+
+    void updateLastActiveTime();
 }

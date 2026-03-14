@@ -1,90 +1,74 @@
-//package github.ponyhuang.agentframework.samples;
-//
-//import github.ponyhuang.agentframework.agents.LoopAgent;
-//import github.ponyhuang.agentframework.clients.ChatClient;
-//import github.ponyhuang.agentframework.tools.Tool;
-//import github.ponyhuang.agentframework.tools.ToolParam;
-//import github.ponyhuang.agentframework.types.ChatResponse;
-//import github.ponyhuang.agentframework.types.message.Message;
-//import github.ponyhuang.agentframework.types.message.UserMessage;
-//
-//import java.util.List;
-//
-///**
-// * Example showing how to use LoopAgent for multi-turn ReAct execution.
-// */
-//public class LoopAgentExample {
-//
-//    public static void main(String[] args) {
-//        CalculatorTool calculator = new CalculatorTool();
-//
-//        ChatClient client = ClientExample.openAIChatClient();
-//
-//        LoopAgent agent = LoopAgent.builder()
-//                .name("calculator-assistant")
-//                .instructions("You are a helpful assistant that uses the calculator tool for math operations.")
-//                .client(client)
-//                .tool(calculator)
-//                .maxSteps(5)
-//                .build();
-//
-//        // Run the agent
-//        List<Message> messages = List.of(
-//                UserMessage.create("Calculate 15 + 27, then multiply the result by 3")
-//        );
-//
-//        ChatResponse response = agent.run(messages, new java.util.HashMap<>());
-//
-//        System.out.println("=== Final Response ===");
-//        System.out.println(response.getLastMessage().getTextContent());
-//
-//        // Also demonstrate using session
-//        System.out.println("\n=== Using Session ===");
-//        var session = agent.createSession();
-//        session.addMessage(UserMessage.create("What is 100 divided by 4?"));
-//        List<Message> sessionMessages = session.runStream(session, UserMessage.create("What is 100 divided by 4?")).collectList().block();
-//        ChatResponse sessionResponse = ChatResponse.builder().messages(sessionMessages).build();
-//        System.out.println(sessionResponse.getLastMessage().getTextContent());
-//    }
-//
-//    /**
-//     * Example tool class with calculator functions.
-//     */
-//    public static class CalculatorTool {
-//
-//        @Tool(name = "calculate", description = "Perform basic arithmetic calculations")
-//        public String calculate(
-//                @ToolParam(description = "The operation: add, subtract, multiply, or divide") String operation,
-//                @ToolParam(description = "First number") double a,
-//                @ToolParam(description = "Second number") double b
-//        ) {
-//            double result;
-//            switch (operation.toLowerCase()) {
-//                case "add":
-//                case "addtion":
-//                    result = a + b;
-//                    break;
-//                case "subtract":
-//                    result = a - b;
-//                    break;
-//                case "multiply":
-//                    result = a * b;
-//                    break;
-//                case "divide":
-//                    if (b == 0) return "Error: Division by zero";
-//                    result = a / b;
-//                    break;
-//                default:
-//                    return "Unknown operation: " + operation;
-//            }
-//            return String.valueOf(result);
-//        }
-//
-//        @Tool(name = "task_done", description = "Mark the task as completed")
-//        public String taskDone(
-//                @ToolParam(description = "Whether the task is done", required = false) Boolean done
-//        ) {
-//            return "{\"done\": " + (done != null && done) + "}";
-//        }
-//    }
-//}
+package github.ponyhuang.agentframework.samples;
+
+import github.ponyhuang.agentframework.agents.LoopAgent;
+import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.types.message.Message;
+import github.ponyhuang.agentframework.types.message.UserMessage;
+
+import java.util.List;
+
+/**
+ * Example showing how to use LoopAgent for multi-turn ReAct execution.
+ */
+public class LoopAgentExample {
+
+    public static void main(String[] args) {
+
+        // Run the agent with comprehensive tool verification request
+        String userMessage = """
+                Please help me verify all available tools are working correctly. Execute the following tasks in order:
+                
+                ## 1. File Operations Test
+                - Use `glob` to find all Java files in the current directory matching "*.java"
+                - Use `write` to create a test file named "test_output.txt" with content "Hello, Tool Testing!"
+                - Use `read` to read the contents of "test_output.txt"
+                - Use `readRange` to read lines 1-2 from "test_output.txt"
+                - Use `edit` to replace "Hello" with "Hi" in "test_output.txt"
+                - Use `read` again to verify the edit was successful
+                
+                ## 2. Shell Commands Test
+                - Use `bash` to execute: "echo 'Shell command works!'"
+                - Use `bashDetailed` to execute: "pwd" and show me the detailed result with exit code
+                - Use `bashWithTimeout` to execute: "sleep 2 && echo 'Timeout command works'" with timeout=5
+                
+                ## 3. Task Management Test
+                - Use `create` to create a task with subject "Test Task 1" and description "Testing task creation"
+                - Use `createWithOptions` to create another task with subject "Test Task 2", description "Advanced task", and activeForm "Creating advanced task"
+                - Use `list` to show all tasks
+                - Use `get` to retrieve task ID "1"
+                - Use `update` to update task ID "1" status to "in_progress"
+                - Use `delete` to delete task ID "2"
+                - Use `list` again to verify the deletion
+                
+                ## 4. System Tools Test
+                - Use `askUser` to ask: "Which tool category do you find most useful?" with options: "File Operations,Shell Commands,Task Management"
+                - Use `planMode` with reason: "Planning the implementation approach for the remaining tasks"
+                
+                ## 5. Completion
+                - After completing all the above tests, use `task_done` with a summary report of which tools executed successfully and any errors encountered
+                
+                Please execute each step sequentially and show me the results. If any tool fails, note the error and continue with the next tool.
+                """;
+        ChatClient client = ClientExample.openAIChatClient();
+
+        LoopAgent agent = LoopAgent.builder()
+                .name("assistant")
+                .instructions("You are a helpful assistant.")
+                .client(client)
+                .maxSteps(5)
+                .build();
+
+        // Run the agent
+        List<Message> messages = List.of(
+                UserMessage.create(userMessage)
+        );
+
+        agent.runStream(messages).subscribe(
+                response -> {
+                    System.out.printf(("[%s]: \n%s".formatted(response.getRole(), response.getTextContent())) + "%n");
+                }
+        );
+
+
+    }
+}

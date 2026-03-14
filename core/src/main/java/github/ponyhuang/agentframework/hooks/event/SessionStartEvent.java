@@ -1,5 +1,7 @@
 package github.ponyhuang.agentframework.hooks.event;
 
+import github.ponyhuang.agentframework.sessions.Session;
+
 import java.util.Map;
 
 /**
@@ -18,6 +20,7 @@ public class SessionStartEvent extends BaseEvent implements HasMatcherValue {
     // SessionStart specific properties
     private String source; // startup, resume, clear, compact
     private String model;
+    private Session session; // Full session object for session-based runs
 
     public SessionStartEvent() {
         super(HookEventType.SESSION_START);
@@ -48,6 +51,9 @@ public class SessionStartEvent extends BaseEvent implements HasMatcherValue {
 
     public String getModel() { return model; }
     public void setModel(String model) { this.model = model; }
+
+    public Session getSession() { return session; }
+    public void setSession(Session session) { this.session = session; }
 
     @Override
     public String getMatcherValue() {

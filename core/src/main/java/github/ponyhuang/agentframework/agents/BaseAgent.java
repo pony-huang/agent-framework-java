@@ -6,6 +6,7 @@ import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.event.SessionStartEvent;
 import github.ponyhuang.agentframework.hooks.event.StopEvent;
 import github.ponyhuang.agentframework.hooks.event.UserPromptSubmitEvent;
+import github.ponyhuang.agentframework.sessions.Session;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.SystemMessage;
@@ -142,79 +143,6 @@ public abstract class BaseAgent implements Agent {
      */
     protected abstract Flux<Message> doRun(List<Message> messages, Map<String, Object> options);
 
-    public ChatResponse run(List<Message> messages, Map<String, Object> options) {
-        LOG.info("Agent '{}' run started, message count: {}", name, messages != null ? messages.size() : 0);
-        Map<String, Object> mergedOptions = mergeOptions(options);
-
-        HookEventBus hookEventBus = getHookEventBus();
-
-        if (hookEventBus != null) {
-            SessionStartEvent event = new SessionStartEvent();
-            event.setSessionId(UUID.randomUUID().toString());
-            event.setSource("startup");
-            event.setModel(client != null ? client.getModel() : "unknown");
-            event.setCwd(System.getProperty("user.dir"));
-            event.setPermissionMode("default");
-            hookEventBus.executeSessionStart(event);
-
-            if (messages != null && !messages.isEmpty()) {
-                UserPromptSubmitEvent promptEvent = new UserPromptSubmitEvent();
-                promptEvent.setSessionId(event.getSessionId());
-                Message lastMessage = messages.get(messages.size() - 1);
-                promptEvent.setPrompt(lastMessage.getTextContent());
-                HookResult promptResult = hookEventBus.executeUserPromptSubmit(promptEvent);
-                if (!promptResult.isAllow()) {
-                    LOG.info("UserPromptSubmit hook blocked execution: {}", promptResult.getReason());
-                    return ChatResponse.builder()
-                            .messages(List.of())
-                            .build();
-                }
-            }
-        }
-
-        try {
-            List<Message> preparedMessages = prepareMessages(messages);
-            Flux<Message> messageFlux = doRun(preparedMessages, mergedOptions);
-            List<Message> collectedMessages = messageFlux.collectList().block();
-
-            ChatResponse response = ChatResponse.builder()
-                    .messages(collectedMessages)
-                    .build();
-
-            LOG.info("Agent '{}' run completed", name);
-
-            fireStopHook(hookEventBus, response);
-
-            return response;
-        } catch (Exception e) {
-            LOG.error("Agent '{}' run failed: {}", name, e.getMessage());
-            throw e;
-        }
-    }
-
-    private void fireStopHook(HookEventBus hookEventBus, ChatResponse response) {
-        if (hookEventBus != null) {
-            StopEvent event = new StopEvent();
-            event.setStopHookActive(false);
-            if (response != null && response.getMessage() != null) {
-                StringBuilder sb = new StringBuilder();
-                github.ponyhuang.agentframework.types.message.Message msg = response.getMessage();
-                if (msg.getBlocks() != null) {
-                    msg.getBlocks().forEach(b -> {
-                        if (b instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
-                            sb.append(((github.ponyhuang.agentframework.types.block.TextBlock) b).getText());
-                        }
-                    });
-                }
-                event.setLastAssistantMessage(sb.toString());
-            }
-            HookResult result = hookEventBus.executeStop(event);
-            if (!result.isShouldContinue()) {
-                LOG.info("Stop hook prevented completion: {}", result.getStopReason());
-            }
-        }
-    }
-
     @Override
     public Flux<Message> runStream(List<Message> messages, Map<String, Object> options) {
         LOG.info("Agent '{}' stream started, message count: {}", name, messages != null ? messages.size() : 0);
@@ -295,6 +223,52 @@ public abstract class BaseAgent implements Agent {
                 LOG.info("Stop hook prevented completion: {}", result.getStopReason());
             }
         }
+    }
+
+
+
+    @Override
+    public Flux<Message> runStream(Session session, List<Message> messages, Map<String, Object> options) {
+        if (session == null) {
+            throw new IllegalArgumentException("Session cannot be null");
+        }
+
+        // Add messages to session
+        if (messages != null && !messages.isEmpty()) {
+            session.addMessages(messages);
+        }
+
+        LOG.info("Agent '{}' stream with session '{}' started", name, session.getId());
+
+        HookEventBus hookEventBus = getHookEventBus();
+
+        if (hookEventBus != null) {
+            SessionStartEvent event = new SessionStartEvent();
+            event.setSessionId(session.getId());
+            event.setSession(session);
+            event.setSource("session");
+            event.setModel(client != null ? client.getModel() : "unknown");
+            event.setCwd(System.getProperty("user.dir"));
+            event.setPermissionMode("default");
+            hookEventBus.executeSessionStart(event);
+        }
+
+        Map<String, Object> mergedOptions = mergeOptions(options);
+        List<Message> sessionMessages = session.getMessages();
+
+        Flux<Message> messageFlux = doRun(prepareMessages(sessionMessages), mergedOptions);
+
+        AtomicReference<List<Message>> collectedMessagesRef = new AtomicReference<>(new ArrayList<>());
+
+        return messageFlux
+                .doOnNext(message -> {
+                    collectedMessagesRef.get().add(message);
+                })
+                .doOnComplete(() -> {
+                    LOG.info("Agent '{}' stream with session '{}' completed", name, session.getId());
+                    // Messages are added to session during the stream
+                })
+                .doOnError(e -> LOG.error("Agent '{}' stream with session '{}' failed: {}", name, session.getId(), e.getMessage()));
     }
 
     /**

@@ -346,9 +346,7 @@ public class AgentBuilder {
                             .model(client.getModel())
                             .tools(tools.isEmpty() ? null : tools)
                             .build();
-
-            ChatResponse response = client.chat(params);
-            return Flux.just(response.getMessage());
+            return Flux.just(client.chat(params).getMessage());
         }
     }
 }

@@ -22,7 +22,7 @@ public class ObservabilityExample {
 
     public static void main(String[] args) {
         OpenTelemetry openTelemetry = initOpenTelemetry();
-        Tracer tracer = openTelemetry.getTracer("com.microsoft.agentframework.samples");
+        Tracer tracer = openTelemetry.getTracer("github.ponyhuang.agentframework.samples");
         ChatClient client = ClientExample.openAIChatClient();
         TracingHookHandler handler = new TracingHookHandler(tracer);
         Agent agent = AgentBuilder.builder()

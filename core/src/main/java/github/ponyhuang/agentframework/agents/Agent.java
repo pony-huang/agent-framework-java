@@ -1,6 +1,7 @@
 package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.sessions.Session;
 import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 
@@ -76,5 +77,28 @@ public interface Agent {
      * @return this agent for chaining
      */
     Agent removeTool(String toolName);
+
+    // ===== Session-based methods =====
+
+    /**
+     * Runs the agent with streaming using a session.
+     *
+     * @param session  the session
+     * @param messages input messages
+     * @return a Flux of message updates
+     */
+    default Flux<Message> runStream(Session session, List<Message> messages) {
+        return runStream(session, messages, null);
+    }
+
+    /**
+     * Runs the agent with streaming using a session and options.
+     *
+     * @param session  the session
+     * @param messages input messages
+     * @param options  additional options
+     * @return a Flux of message updates
+     */
+    Flux<Message> runStream(Session session, List<Message> messages, Map<String, Object> options);
 
 }

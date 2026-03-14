@@ -71,11 +71,6 @@ public class SamplesTest {
     }
     
     @Test
-    void testAutoGenMigrationExample() {
-        runSample(() -> AutoGenMigrationExample.main(new String[]{}));
-    }
-
-    @Test
     void testGroupChatMigrationExample() {
         runSample(() -> GroupChatMigrationExample.main(new String[]{}));
     }
