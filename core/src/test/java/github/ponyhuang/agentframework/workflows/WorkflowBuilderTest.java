@@ -1,7 +1,7 @@
 //package github.ponyhuang.agentframework.workflows;
 //
 //import github.ponyhuang.agentframework.agents.Agent;
-//import github.ponyhuang.agentframework.clients.ChatClient;
+//import github.ponyhuang.agentframework.providers.ChatClient;
 //import github.ponyhuang.agentframework.middleware.AgentMiddleware;
 //import github.ponyhuang.agentframework.sessions.AgentSession;
 //import github.ponyhuang.agentframework.sessions.ContextProvider;

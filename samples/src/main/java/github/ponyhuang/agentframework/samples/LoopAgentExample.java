@@ -1,7 +1,7 @@
 package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.LoopAgent;
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 

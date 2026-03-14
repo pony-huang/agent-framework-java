@@ -1,4 +1,4 @@
-package github.ponyhuang.agentframework.clients;
+package github.ponyhuang.agentframework.providers;
 
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;

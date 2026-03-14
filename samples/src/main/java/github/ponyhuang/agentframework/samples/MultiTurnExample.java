@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.sessions.DefaultSession;
 import github.ponyhuang.agentframework.sessions.Session;
 import github.ponyhuang.agentframework.types.message.Message;

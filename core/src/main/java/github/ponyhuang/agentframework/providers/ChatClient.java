@@ -1,9 +1,8 @@
-package github.ponyhuang.agentframework.clients;
+package github.ponyhuang.agentframework.providers;
 
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 /**
  * Interface for chat completion clients.
@@ -28,21 +27,9 @@ public interface ChatClient {
     Flux<ChatResponse> chatStream(ChatCompleteParams params);
 
     /**
-     * Sends a chat completion request and gets an asynchronous response.
-     *
-     * @param params the chat completion parameters
-     * @return a Mono containing the chat response
-     */
-    default Mono<ChatResponse> chatAsync(ChatCompleteParams params) {
-        return Mono.fromCallable(() -> chat(params));
-    }
-
-    /**
      * Gets the model name used by this client.
      *
      * @return the model name
      */
-    default String getModel() {
-        return null;
-    }
+     String getModel();
 }

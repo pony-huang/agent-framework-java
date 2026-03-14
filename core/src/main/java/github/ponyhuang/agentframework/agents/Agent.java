@@ -1,6 +1,6 @@
 package github.ponyhuang.agentframework.agents;
 
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.sessions.Session;
 import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;

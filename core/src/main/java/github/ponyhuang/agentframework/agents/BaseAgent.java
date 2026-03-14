@@ -1,6 +1,6 @@
 package github.ponyhuang.agentframework.agents;
 
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.hooks.HookEventBus;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.event.SessionStartEvent;

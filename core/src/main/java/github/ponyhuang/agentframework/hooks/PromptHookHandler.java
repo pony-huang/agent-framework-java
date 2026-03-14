@@ -1,7 +1,7 @@
 package github.ponyhuang.agentframework.hooks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.hooks.event.BaseEvent;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.message.Message;

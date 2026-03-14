@@ -2,11 +2,9 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
-import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.types.ChatResponse;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
-import reactor.core.publisher.Flux;
 
 import java.util.List;
 

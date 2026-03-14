@@ -2,7 +2,7 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.agents.AgentBuilder;
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.tools.ToolParam;
 import github.ponyhuang.agentframework.tools.Tool;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
@@ -12,7 +12,6 @@ import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
-import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.HashMap;

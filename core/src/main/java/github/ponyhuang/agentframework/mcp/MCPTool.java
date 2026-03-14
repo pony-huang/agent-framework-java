@@ -1,6 +1,6 @@
 package github.ponyhuang.agentframework.mcp;
 
-import github.ponyhuang.agentframework.clients.ChatClient;
+import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.tools.FunctionTool;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
@@ -8,7 +8,6 @@ import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.block.TextBlock;
-import github.ponyhuang.agentframework.types.Role;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.common.McpTransportContext;
