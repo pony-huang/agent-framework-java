@@ -1,6 +1,7 @@
 package github.ponyhuang.agentframework.types.block;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class ToolUseBlock implements Block {
     private final String type = "tool_use";
@@ -46,10 +47,7 @@ public class ToolUseBlock implements Block {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ToolUseBlock that = (ToolUseBlock) o;
-        return type.equals(that.type) &&
-                (id != null ? id.equals(that.id) : that.id == null) &&
-                (name != null ? name.equals(that.name) : that.name == null) &&
-                (input != null ? input.equals(that.input) : that.input == null);
+        return (Objects.equals(id, that.id)) && (Objects.equals(name, that.name)) && (Objects.equals(input, that.input));
     }
 
     @Override

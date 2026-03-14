@@ -2,6 +2,8 @@ package github.ponyhuang.agentframework.types.block;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Objects;
+
 public class ToolResultBlock implements Block {
     private final String type = "tool_result";
     @JsonProperty("tool_use_id")
@@ -57,10 +59,7 @@ public class ToolResultBlock implements Block {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ToolResultBlock that = (ToolResultBlock) o;
-        return type.equals(that.type) &&
-                (toolUseId != null ? toolUseId.equals(that.toolUseId) : that.toolUseId == null) &&
-                (content != null ? content.equals(that.content) : that.content == null) &&
-                (isError != null ? isError.equals(that.isError) : that.isError == null);
+        return (Objects.equals(toolUseId, that.toolUseId)) && (Objects.equals(content, that.content)) && (Objects.equals(isError, that.isError));
     }
 
     @Override

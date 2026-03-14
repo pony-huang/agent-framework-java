@@ -1,5 +1,7 @@
 package github.ponyhuang.agentframework.types.block;
 
+import java.util.Objects;
+
 public class ThinkingBlock implements Block {
     private final String type = "thinking";
     private final String thinking;
@@ -46,9 +48,7 @@ public class ThinkingBlock implements Block {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ThinkingBlock that = (ThinkingBlock) o;
-        return type.equals(that.type) &&
-                (thinking != null ? thinking.equals(that.thinking) : that.thinking == null) &&
-                (signature != null ? signature.equals(that.signature) : that.signature == null);
+        return Objects.equals(thinking, that.thinking) && Objects.equals(signature, that.signature);
     }
 
     @Override

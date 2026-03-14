@@ -14,7 +14,10 @@ import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.message.SystemMessage;
 import reactor.core.publisher.Flux;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * LoopAgent - An agent that supports multi-turn ReAct execution loop.
@@ -37,26 +40,26 @@ public class LoopAgent extends BaseAgent {
 
     public static final String DEFAULT_SYSTEM_PROMPT = """
             You are Code Agent, an AI-powered software engineering assistant.
-
+            
             You are helpful, harmless, and honest. Your goal is to assist users with software development tasks
             including writing code, fixing bugs, refactoring, and performing code reviews.
-
+            
             ## Available Tools
-
+            
             You have access to the following tools to accomplish your tasks:
-
+            
             ### File Operations
             - **read**: Read file contents
             - **readRange**: Read specific line range from a file
             - **write**: Create or overwrite a file
             - **edit**: Replace text in a file
             - **glob**: Find files matching a pattern
-
+            
             ### Shell Commands
             - **bash**: Execute shell commands
             - **bashWithTimeout**: Execute with timeout
             - **bashDetailed**: Execute and get detailed result
-
+            
             ### Task Management
             - **create**: Create a new task
             - **createWithOptions**: Create task with full options
@@ -64,28 +67,28 @@ public class LoopAgent extends BaseAgent {
             - **list**: List all tasks
             - **get**: Get a task by ID
             - **delete**: Delete a task
-
+            
             ### System
             - **askUser**: Ask questions to the user
             - **planMode**: Enter planning mode
-
+            
             ### Completion
             - **task_done**: Signal task completion when the work is finished
-
+            
             ## Working Directory
-
+            
             All file operations and shell commands operate relative to the working directory specified by the user.
-
+            
             ## Guidelines
-
+            
             1. Always verify your changes work correctly before marking a task as complete
             2. Use appropriate tools to explore the codebase before making changes
             3. Provide clear, actionable feedback to users
             4. When unsure, ask clarifying questions
             5. Follow best practices for code quality and security
-
+            
             ## Task Completion
-
+            
             When you believe the task is complete, call the task_done tool with a summary of what was accomplished.
             If there are remaining issues or the task cannot be completed, explain why.
             """;
@@ -139,80 +142,81 @@ public class LoopAgent extends BaseAgent {
             ChatResponse response = client.chat(params);
 
             // Add assistant message to conversation
-            Message assistantMessage = response.getMessage();
-            conversationMessages.add(assistantMessage);
+            conversationMessages.add(response.getMessage());
 
             // Check if we have a function call
-            if (!response.hasFunctionCall()) {
-                // No function call, return the response as Flux
-                return Flux.fromIterable(conversationMessages);
-            }
-
-            // Handle function calls - ReAct loop
-            List<ToolUseBlock> toolCalls = response.getToolCalls();
-            if (toolCalls == null || toolCalls.isEmpty()) {
-                break;
-            }
-
-            ToolUseBlock toolCall = toolCalls.get(0);
-            String functionName = toolCall.getName();
-            Map<String, Object> functionArgs = toolCall.getInput();
-            String toolCallId = toolCall.getId();
-
-            LOG.info("Executing tool: {}", functionName);
-
-            // Execute tool
-            Object toolResult;
-            try {
-                if (toolExecutor != null) {
-                    toolResult = toolExecutor.execute(functionName, functionArgs != null ? functionArgs : Collections.emptyMap());
-                } else {
-                    toolResult = "Error: No tool executor configured";
+            if (response.hasFunctionCall()) {
+                // Handle function calls - ReAct loop
+                List<ToolUseBlock> toolCalls = response.getToolCalls();
+                if (toolCalls == null || toolCalls.isEmpty()) {
+                    break;
                 }
-            } catch (Exception e) {
-                LOG.error("Tool execution failed: {}", e.getMessage());
-                toolResult = "Error: " + e.getMessage();
+
+                ToolUseBlock toolCall = toolCalls.get(0);
+                String functionName = toolCall.getName();
+                Map<String, Object> functionArgs = toolCall.getInput();
+                String toolCallId = toolCall.getId();
+
+                LOG.info("Executing tool: {}", functionName);
+
+                // Execute tool
+                Object toolResult;
+                try {
+                    if (toolExecutor != null) {
+                        toolResult = toolExecutor.execute(functionName, functionArgs != null ? functionArgs : Collections.emptyMap());
+                    } else {
+                        toolResult = "Error: No tool executor configured";
+                    }
+                } catch (Exception e) {
+                    LOG.error("Tool execution failed: {}", e.getMessage());
+                    toolResult = "Error: " + e.getMessage();
+                }
+
+                // Check for task_done signal
+                String resultStr = toolResult != null ? toolResult.toString() : "";
+                if (TaskDoneTool.isTaskComplete(resultStr)) {
+                    LOG.info("Task completed at step {}", currentStep);
+                    String message = TaskDoneTool.extractMessage(resultStr);
+                    Message completionMessage = AssistantMessage.create(message);
+                    conversationMessages.add(completionMessage);
+                    return Flux.fromIterable(conversationMessages);
+                }
+
+                // Add tool result message (for non-task_done results)
+                Message toolMessage = ResultMessage.create(toolCallId, resultStr);
+                conversationMessages.add(toolMessage);
             }
 
-            // Check for task_done signal
-            String resultStr = toolResult != null ? toolResult.toString() : "";
-            if (TaskDoneTool.isTaskComplete(resultStr)) {
-                LOG.info("Task completed at step {}", currentStep);
-                String message = TaskDoneTool.extractMessage(resultStr);
-                Message completionMessage = AssistantMessage.create(message);
-                conversationMessages.add(completionMessage);
-                return Flux.fromIterable(conversationMessages);
+
+        }
+
+        if (currentStep >= maxSteps) {
+            LOG.warn("Max steps reached: {}", maxSteps);
+
+            // Make a final summary request to the LLM
+            String summaryPrompt = """
+                    The maximum number of steps has been reached. Please provide a summary of the work completed so far,
+                    including what has been accomplished and what remains to be done. Be concise but informative.
+                    """;
+
+            // Add a user message asking for summary
+            Message summaryRequest = github.ponyhuang.agentframework.types.message.UserMessage.create(summaryPrompt);
+            List<Message> summaryMessages = new ArrayList<>(conversationMessages);
+            summaryMessages.add(summaryRequest);
+
+            // Call LLM without tools for summary
+            ChatResponse summaryResponse = client.chat(ChatCompleteParams.builder()
+                    .messages(summaryMessages)
+                    .build());
+
+            List<Message> allMessages = new ArrayList<>(conversationMessages);
+            if (summaryResponse.getMessage() != null) {
+                allMessages.add(summaryResponse.getMessage());
             }
-
-
-            // Add tool result message (for non-task_done results)
-            Message toolMessage = ResultMessage.create(toolCallId, resultStr);
-            conversationMessages.add(toolMessage);
+            return Flux.fromIterable(allMessages);
         }
 
-        LOG.warn("Max steps reached: {}", maxSteps);
-
-        // Make a final summary request to the LLM
-        String summaryPrompt = """
-            The maximum number of steps has been reached. Please provide a summary of the work completed so far,
-            including what has been accomplished and what remains to be done. Be concise but informative.
-            """;
-
-        // Add a user message asking for summary
-        Message summaryRequest = github.ponyhuang.agentframework.types.message.UserMessage.create(summaryPrompt);
-        List<Message> summaryMessages = new ArrayList<>(conversationMessages);
-        summaryMessages.add(summaryRequest);
-
-        // Call LLM without tools for summary
-        ChatResponse summaryResponse = client.chat(ChatCompleteParams.builder()
-                .messages(summaryMessages)
-                .build());
-
-        List<Message> allMessages = new ArrayList<>(conversationMessages);
-        if (summaryResponse.getMessage() != null) {
-            allMessages.add(summaryResponse.getMessage());
-        }
-        return Flux.fromIterable(allMessages);
+        return Flux.fromIterable(conversationMessages);
     }
 
     /**

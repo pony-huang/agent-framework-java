@@ -1,5 +1,7 @@
 package github.ponyhuang.agentframework.types.block;
 
+import java.util.Objects;
+
 public class TextBlock implements Block {
     private final String type = "text";
     private final String text;
@@ -30,7 +32,7 @@ public class TextBlock implements Block {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TextBlock textBlock = (TextBlock) o;
-        return type.equals(textBlock.type) && (text != null ? text.equals(textBlock.text) : textBlock.text == null);
+        return Objects.equals(text, textBlock.text);
     }
 
     @Override
