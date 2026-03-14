@@ -2,6 +2,11 @@ package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.LoopAgent;
 import github.ponyhuang.agentframework.providers.ChatClient;
+import github.ponyhuang.agentframework.types.block.Block;
+import github.ponyhuang.agentframework.types.block.TextBlock;
+import github.ponyhuang.agentframework.types.block.ThinkingBlock;
+import github.ponyhuang.agentframework.types.block.ToolResultBlock;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 
@@ -65,8 +70,30 @@ public class LoopAgentExample {
 
         agent.runStream(messages).subscribe(
                 response -> {
-                    System.out.printf(("[%s]: \n%s".formatted(response.getRole(), response.getTextContent())) + "%n");
-                }
+                    // Print all blocks in the message
+                    List<Block> blocks = response.getBlocks();
+                    if (blocks != null) {
+                        for (Block block : blocks) {
+                            if (block instanceof TextBlock) {
+                                System.out.println("=== Text ===");
+                                System.out.println(((TextBlock) block).getText());
+                            } else if (block instanceof ThinkingBlock) {
+                                System.out.println("=== Thinking ===");
+                                System.out.println(((ThinkingBlock) block).getThinking());
+                            } else if (block instanceof ToolUseBlock toolUse) {
+                                System.out.println("=== Tool Call ===");
+                                System.out.println("Tool: " + toolUse.getName());
+                                System.out.println("Input: " + toolUse.getInput());
+                            } else if (block instanceof ToolResultBlock toolResult) {
+                                System.out.println("=== Tool Result ===");
+                                System.out.println("Tool ID: " + toolResult.getToolUseId());
+                                System.out.println("Result: " + toolResult.getContent());
+                            }
+                        }
+                    }
+                },
+                error -> System.err.println("Error: " + error.getMessage()),
+                () -> System.out.println("=== Stream Completed ===")
         );
 
 
