@@ -1,9 +1,6 @@
 package github.ponyhuang.agentframework.agents;
 
 import github.ponyhuang.agentframework.clients.ChatClient;
-import github.ponyhuang.agentframework.sessions.AgentSession;
-import github.ponyhuang.agentframework.sessions.ContextProvider;
-import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.types.message.Message;
 import reactor.core.publisher.Flux;
 
@@ -56,20 +53,6 @@ public interface Agent {
      */
     Flux<Message> runStream(List<Message> messages, Map<String, Object> options);
 
-    /**
-     * Creates a new session for this agent.
-     *
-     * @return a new session
-     */
-    AgentSession createSession();
-
-    /**
-     * Creates a new session with options.
-     *
-     * @param options session options
-     * @return a new session
-     */
-    AgentSession createSession(SessionOptions options);
 
     /**
      * Gets all available tool definitions for this agent.
@@ -94,18 +77,4 @@ public interface Agent {
      */
     Agent removeTool(String toolName);
 
-    /**
-     * Gets all context providers for this agent.
-     *
-     * @return list of context providers
-     */
-    List<ContextProvider> getContextProviders();
-
-    /**
-     * Adds a context provider to this agent.
-     *
-     * @param provider the context provider
-     * @return this agent for chaining
-     */
-    Agent addContextProvider(ContextProvider provider);
 }

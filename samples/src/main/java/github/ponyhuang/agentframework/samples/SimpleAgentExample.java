@@ -27,11 +27,7 @@ public class SimpleAgentExample {
                 .build();
 
         // Run the agent
-        List<Message> messages = agent.runStream(List.of(UserMessage.create("Hello, how are you?"))).collectList().block();
-        ChatResponse response = ChatResponse.builder()
-                .messages(messages)
-                .build();
-
-        System.out.println("Response: " + response.getMessage().getTextContent());
+        List<Message> block = agent.runStream(List.of(UserMessage.create("Hello, how are you?"))).collectList().block();
+        System.out.println("Response: " + block);
     }
 }

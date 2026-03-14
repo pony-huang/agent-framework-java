@@ -7,11 +7,7 @@ import github.ponyhuang.agentframework.hooks.event.HookEventType;
 import github.ponyhuang.agentframework.hooks.event.UserPromptSubmitEvent;
 import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.TracingHookHandler;
-import github.ponyhuang.agentframework.sessions.ConversationSession;
-import github.ponyhuang.agentframework.sessions.ContextProvider;
-import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
-import github.ponyhuang.agentframework.types.message.SystemMessage;
 import github.ponyhuang.agentframework.workflows.Workflow;
 import github.ponyhuang.agentframework.workflows.WorkflowBuilder;
 import io.opentelemetry.api.OpenTelemetry;
@@ -21,7 +17,6 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,18 +52,6 @@ public class EndToEndExample {
             return HookResult.allow();
         };
 
-        ContextProvider userProfileProvider = new ContextProvider() {
-            @Override
-            public List<Message> beforeRun(Object agent, ConversationSession session, List<Message> messages, Map<String, Object> options) {
-                String userLevel = (String) options.get("user_level");
-                if (userLevel == null) userLevel = "REGULAR";
-
-                List<Message> newMessages = new ArrayList<>(messages);
-                newMessages.add(0, SystemMessage.create("User Level: " + userLevel + ". Adjust tone accordingly."));
-                return newMessages;
-            }
-        };
-
         Agent triageAgent = AgentBuilder.builder()
                 .name("TriageAgent")
                 .instructions("Classify user intent into: REFUND, TECH_SUPPORT, or GENERAL. Reply ONLY with the category.")
@@ -89,7 +72,6 @@ public class EndToEndExample {
                 .hook(HookEventType.STOP, handler)
                 .hook(HookEventType.PRE_TOOL_USE, handler)
                 .hook(HookEventType.POST_TOOL_USE, handler)
-                .contextProvider(userProfileProvider)
                 .build();
 
         Agent techAgent = AgentBuilder.builder()
@@ -101,7 +83,6 @@ public class EndToEndExample {
                 .hook(HookEventType.STOP, handler)
                 .hook(HookEventType.PRE_TOOL_USE, handler)
                 .hook(HookEventType.POST_TOOL_USE, handler)
-                .contextProvider(userProfileProvider)
                 .build();
 
         Agent generalAgent = AgentBuilder.builder()
@@ -113,7 +94,6 @@ public class EndToEndExample {
                 .hook(HookEventType.STOP, handler)
                 .hook(HookEventType.PRE_TOOL_USE, handler)
                 .hook(HookEventType.POST_TOOL_USE, handler)
-                .contextProvider(userProfileProvider)
                 .build();
 
         Workflow workflow = WorkflowBuilder.builder()
@@ -167,7 +147,7 @@ public class EndToEndExample {
             System.setProperty("file.encoding", "UTF-8");
             System.setProperty("sun.stdout.encoding", "UTF-8");
             System.setProperty("sun.stderr.encoding", "UTF-8");
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
     }
 }

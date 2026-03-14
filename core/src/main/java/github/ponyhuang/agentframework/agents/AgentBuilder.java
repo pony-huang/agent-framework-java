@@ -8,15 +8,11 @@ import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.event.BaseEvent;
 import github.ponyhuang.agentframework.hooks.event.HookEventType;
 import github.ponyhuang.agentframework.mcp.MCPTool;
-import github.ponyhuang.agentframework.sessions.AgentSession;
-import github.ponyhuang.agentframework.sessions.ContextProvider;
-import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.tools.FunctionTool;
 import github.ponyhuang.agentframework.tools.ToolExecutor;
-import github.ponyhuang.agentframework.sessions.InMemoryAgentSession;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
@@ -34,7 +30,6 @@ public class AgentBuilder {
     private String instructions;
     private ChatClient client;
     private List<Map<String, Object>> tools = new ArrayList<>();
-    private List<ContextProvider> contextProviders = new ArrayList<>();
     private Map<String, Object> defaultOptions = new HashMap<>();
     private ToolExecutor toolExecutor = new ToolExecutor();
     private HookEventBus hookEventBus = new HookEventBus();
@@ -179,31 +174,6 @@ public class AgentBuilder {
         return this;
     }
 
-    /**
-     * Adds a context provider to the agent.
-     *
-     * @param provider the context provider
-     * @return this builder
-     */
-    public AgentBuilder contextProvider(ContextProvider provider) {
-        if (provider != null) {
-            this.contextProviders.add(provider);
-        }
-        return this;
-    }
-
-    /**
-     * Adds multiple context providers to the agent.
-     *
-     * @param providers the context providers
-     * @return this builder
-     */
-    public AgentBuilder contextProviders(List<ContextProvider> providers) {
-        if (providers != null) {
-            this.contextProviders.addAll(providers);
-        }
-        return this;
-    }
 
     /**
      * Sets default options for the agent.
@@ -334,7 +304,7 @@ public class AgentBuilder {
             throw new IllegalStateException("ChatClient is required");
         }
 
-        return new DefaultAgent(name, instructions, client, tools, contextProviders, defaultOptions, hookEventBus);
+        return new DefaultAgent(name, instructions, client, tools, defaultOptions, hookEventBus);
     }
 
     /**
@@ -356,7 +326,7 @@ public class AgentBuilder {
     private static class DefaultAgent extends BaseAgent {
 
         public DefaultAgent(String name, String instructions, ChatClient client,
-                           List<Map<String, Object>> tools, List<ContextProvider> contextProviders,
+                           List<Map<String, Object>> tools,
                            Map<String, Object> defaultOptions,
                            HookEventBus hookEventBus) {
             super();
@@ -364,14 +334,8 @@ public class AgentBuilder {
             this.instructions = instructions;
             this.client = client;
             this.tools = tools != null ? new ArrayList<>(tools) : new ArrayList<>();
-            this.contextProviders = contextProviders != null ? new ArrayList<>(contextProviders) : new ArrayList<>();
             this.defaultOptions = defaultOptions != null ? new HashMap<>(defaultOptions) : new HashMap<>();
             this.hookEventBus = hookEventBus;
-        }
-
-        @Override
-        public AgentSession createSession(SessionOptions options) {
-            return new InMemoryAgentSession(this, options);
         }
 
         @Override

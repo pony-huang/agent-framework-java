@@ -6,9 +6,6 @@ import github.ponyhuang.agentframework.hooks.HookResult;
 import github.ponyhuang.agentframework.hooks.event.SessionStartEvent;
 import github.ponyhuang.agentframework.hooks.event.StopEvent;
 import github.ponyhuang.agentframework.hooks.event.UserPromptSubmitEvent;
-import github.ponyhuang.agentframework.sessions.AgentSession;
-import github.ponyhuang.agentframework.sessions.ContextProvider;
-import github.ponyhuang.agentframework.sessions.SessionOptions;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.SystemMessage;
@@ -36,13 +33,11 @@ public abstract class BaseAgent implements Agent {
     protected String instructions;
     protected ChatClient client;
     protected List<Map<String, Object>> tools;
-    protected List<ContextProvider> contextProviders;
     protected Map<String, Object> defaultOptions;
     protected HookEventBus hookEventBus;
 
     protected BaseAgent() {
         this.tools = new ArrayList<>();
-        this.contextProviders = new ArrayList<>();
         this.defaultOptions = new HashMap<>();
     }
 
@@ -51,7 +46,6 @@ public abstract class BaseAgent implements Agent {
         this.instructions = builder.instructions;
         this.client = builder.client;
         this.tools = builder.tools != null ? new ArrayList<>(builder.tools) : new ArrayList<>();
-        this.contextProviders = builder.contextProviders != null ? new ArrayList<>(builder.contextProviders) : new ArrayList<>();
         this.defaultOptions = builder.defaultOptions != null ? new HashMap<>(builder.defaultOptions) : new HashMap<>();
     }
 
@@ -76,11 +70,6 @@ public abstract class BaseAgent implements Agent {
     }
 
     @Override
-    public List<ContextProvider> getContextProviders() {
-        return new ArrayList<>(contextProviders);
-    }
-
-    @Override
     public Agent addTool(Map<String, Object> tool) {
         if (tool != null) {
             tools.add(tool);
@@ -88,13 +77,6 @@ public abstract class BaseAgent implements Agent {
         return this;
     }
 
-    @Override
-    public Agent addContextProvider(ContextProvider provider) {
-        if (provider != null) {
-            contextProviders.add(provider);
-        }
-        return this;
-    }
 
     @Override
     public Agent removeTool(String toolName) {
@@ -113,24 +95,6 @@ public abstract class BaseAgent implements Agent {
     public HookEventBus getHookEventBus() {
         return hookEventBus;
     }
-
-    /**
-     * Creates a new session for this agent.
-     *
-     * @return a new session
-     */
-    @Override
-    public AgentSession createSession() {
-        return createSession(SessionOptions.builder().build());
-    }
-
-    /**
-     * Creates a new session with options.
-     *
-     * @param options session options
-     * @return a new session
-     */
-    public abstract AgentSession createSession(SessionOptions options);
 
     /**
      * Merges default options with runtime options.
@@ -344,7 +308,6 @@ public abstract class BaseAgent implements Agent {
         protected String instructions;
         protected ChatClient client;
         protected List<Map<String, Object>> tools;
-        protected List<ContextProvider> contextProviders;
         protected Map<String, Object> defaultOptions;
 
         @SuppressWarnings("unchecked")
@@ -371,11 +334,6 @@ public abstract class BaseAgent implements Agent {
             return (B) this;
         }
 
-        @SuppressWarnings("unchecked")
-        public B contextProviders(List<ContextProvider> contextProviders) {
-            this.contextProviders = contextProviders;
-            return (B) this;
-        }
 
         @SuppressWarnings("unchecked")
         public B addTool(Map<String, Object> tool) {
@@ -386,14 +344,6 @@ public abstract class BaseAgent implements Agent {
             return (B) this;
         }
 
-        @SuppressWarnings("unchecked")
-        public B addContextProvider(ContextProvider provider) {
-            if (this.contextProviders == null) {
-                this.contextProviders = new ArrayList<>();
-            }
-            this.contextProviders.add(provider);
-            return (B) this;
-        }
 
         @SuppressWarnings("unchecked")
         public B defaultOptions(Map<String, Object> defaultOptions) {

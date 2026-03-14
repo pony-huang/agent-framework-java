@@ -11,6 +11,7 @@ import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import github.ponyhuang.agentframework.workflows.Workflow;
 import github.ponyhuang.agentframework.workflows.WorkflowBuilder;
+import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
 import java.util.List;
@@ -68,22 +69,23 @@ public class ComplexWorkflowExample {
                 .build();
 
         // Simple routing logic
-//        String input = "How do I write a loop in Java?";
-//        List<Message> messages = List.of(UserMessage.create(input));
-//
-//        ChatResponse response = routerAgent.runStream(messages);
-//        String routerOutput = response.getMessage() != null ? response.getMessage().getTextContent() : "";
-//
-//        System.out.println("Router output: " + routerOutput);
-//
-//        // Route to appropriate agent based on router output
-//        Agent selectedAgent = routerOutput.toUpperCase().contains("TECH") ? techAgent : generalAgent;
-//
-//        ChatResponse finalResponse = selectedAgent.run(messages, null);
-//        System.out.println("Final response from " + selectedAgent.getName() + ": " +
-//                (finalResponse.getMessage() != null ? finalResponse.getMessage().getTextContent() : ""));
-//
-//        // Display workflow context
-//        System.out.println("Workflow context: " + workflowContext);
+        String input = "How do I write a loop in Java?";
+        List<Message> messages = List.of(UserMessage.create(input));
+
+        Flux<Message> messageFlux = routerAgent.runStream(messages);
+        Message message = messageFlux.blockLast();
+        String routerOutput = message != null ? message.getTextContent() : "";
+
+        System.out.println("Router output: " + routerOutput);
+
+        // Route to appropriate agent based on router output
+        Agent selectedAgent = routerOutput.toUpperCase().contains("TECH") ? techAgent : generalAgent;
+
+        Message message1 = selectedAgent.runStream(messages).blockLast();
+        System.out.println("Final response from " + selectedAgent.getName() + ": " +
+                (message1 != null ? message1.getTextContent() : ""));
+
+        // Display workflow context
+        System.out.println("Workflow context: " + workflowContext);
     }
 }

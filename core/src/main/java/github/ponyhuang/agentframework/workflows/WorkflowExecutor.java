@@ -3,10 +3,8 @@ package github.ponyhuang.agentframework.workflows;
 import github.ponyhuang.agentframework.agents.Agent;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.message.Message;
-import github.ponyhuang.agentframework.types.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -48,7 +46,7 @@ public class WorkflowExecutor {
             while (currentNodeId != null && !completedNodes.contains(currentNodeId)) {
                 String nodeId = currentNodeId;
                 Workflow.Node node = workflow.getNodes().stream()
-                        .filter(n -> n.id().equals(nodeId))
+                        .filter(n -> !n.id().equals(nodeId))
                         .findFirst()
                         .orElse(null);
 
@@ -149,7 +147,7 @@ public class WorkflowExecutor {
         ChatResponse response = ChatResponse.builder()
                 .messages(collectedMessages)
                 .build();
-        
+
         // Merge extra properties back to context if present
         if (response.getExtraProperties() != null) {
             context.putAll(response.getExtraProperties());

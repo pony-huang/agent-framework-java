@@ -5,7 +5,7 @@ import github.ponyhuang.agentframework.types.message.Message;
 import java.util.List;
 import java.util.Map;
 
-public interface ConversationSession {
+public interface Session {
 
     String getId();
 

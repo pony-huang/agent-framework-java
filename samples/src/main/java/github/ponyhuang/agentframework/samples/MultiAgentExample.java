@@ -23,7 +23,7 @@ public class MultiAgentExample {
                 .agent(analyzer)
                 .agent(writer)
                 .execute("Explain quantum computing");
-        System.out.println(sequentialResult.getMessage().getTextContent());
+        System.out.println(sequentialResult.getLastMessage().getTextContent());
 
         // Example 2: Concurrent
         System.out.println("\n=== Concurrent ===");
@@ -32,7 +32,7 @@ public class MultiAgentExample {
                 .agent(writer)
                 .agent(editor);
         var responses = concurrentBuilder.execute("Review this code");
-        responses.forEach(r -> System.out.println(r.getMessage().getTextContent()));
+        responses.forEach(r -> System.out.println(r.getLastMessage().getTextContent()));
 
         // Example 3: Handoff
         System.out.println("\n=== Handoff ===");
@@ -46,7 +46,7 @@ public class MultiAgentExample {
                     return null;
                 });
         ChatResponse handoffResult = handoffBuilder.execute("Start the task");
-        System.out.println(handoffResult.getMessage().getTextContent());
+        System.out.println(handoffResult.getLastMessage().getTextContent());
 
         // Example 4: Group Chat
         System.out.println("\n=== Group Chat ===");
@@ -57,7 +57,7 @@ public class MultiAgentExample {
                 .moderator(editor)
                 .maxTurns(5)
                 .execute("Create a short story");
-        System.out.println(groupResult.getMessage().getTextContent());
+        System.out.println(groupResult.getLastMessage().getTextContent());
 
         // Example 5: Magentic One
         System.out.println("\n=== Magentic One ===");
@@ -69,7 +69,7 @@ public class MultiAgentExample {
                 .specialist("editor", editor)
                 .maxIterations(10);
         ChatResponse magenticResult = magenticBuilder.execute("Write a comprehensive report");
-        System.out.println(magenticResult.getMessage().getTextContent());
+        System.out.println(magenticResult.getLastMessage().getTextContent());
     }
 
     private static Agent createAgent(String name, String instructions) {
