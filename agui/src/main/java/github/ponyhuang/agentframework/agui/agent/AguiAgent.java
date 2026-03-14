@@ -8,7 +8,7 @@
 //import com.agui.core.message.BaseMessage;
 //import github.ponyhuang.agentframework.agents.BaseAgent;
 //import github.ponyhuang.agentframework.agui.MessageConverter;
-//import github.ponyhuang.agentframework.clients.ChatClient;
+//import github.ponyhuang.agentframework.providers.ChatClient;
 //import github.ponyhuang.agentframework.sessions.AgentSession;
 //import github.ponyhuang.agentframework.tools.FunctionTool;
 //import github.ponyhuang.agentframework.tools.ToolExecutor;
