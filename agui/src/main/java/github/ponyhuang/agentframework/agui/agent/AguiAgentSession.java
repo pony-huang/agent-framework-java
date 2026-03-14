@@ -1,7 +1,7 @@
 //package github.ponyhuang.agentframework.agui.agent;
 //
 //import github.ponyhuang.agentframework.agents.Agent;
-//import github.ponyhuang.agentframework.clients.ChatClient;
+//import github.ponyhuang.agentframework.providers.ChatClient;
 //import github.ponyhuang.agentframework.sessions.AgentSession;
 //import github.ponyhuang.agentframework.sessions.ContextProvider;
 //import github.ponyhuang.agentframework.tools.ToolExecutor;
