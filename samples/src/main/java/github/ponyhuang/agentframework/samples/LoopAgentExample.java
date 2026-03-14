@@ -55,7 +55,7 @@ public class LoopAgentExample {
                 .name("assistant")
                 .instructions("You are a helpful assistant.")
                 .client(client)
-                .maxSteps(5)
+                .maxSteps(30)
                 .build();
 
         // Run the agent

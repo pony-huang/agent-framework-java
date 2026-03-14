@@ -8,7 +8,6 @@ import github.ponyhuang.agentframework.tools.builtins.TaskTools;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
-import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.message.SystemMessage;
@@ -18,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * LoopAgent - An agent that supports multi-turn ReAct execution loop.
@@ -109,114 +109,122 @@ public class LoopAgent extends BaseAgent {
         Message systemMessage = SystemMessage.create().withText(DEFAULT_SYSTEM_PROMPT);
         List<Message> conversationMessages = new ArrayList<>(messages);
         conversationMessages.add(0, systemMessage);
-        int currentStep = 0;
 
-        while (currentStep < maxSteps) {
-            currentStep++;
-            LOG.debug("Step {}/{}", currentStep, maxSteps);
+        // State for the reactive loop
+        AtomicInteger currentStep = new AtomicInteger(0);
 
-            // Build chat request - merge tool executor schemas with builder tools
-            List<Map<String, Object>> toolSchemas = new ArrayList<>();
+        return Flux.generate(
+                () -> conversationMessages,
+                (convMessages, sink) -> {
+                    int step = currentStep.incrementAndGet();
 
-            // Add schemas from tool executor
-            if (toolExecutor != null) {
-                toolSchemas.addAll(toolExecutor.getToolSchemas());
-            }
+                    if (step > maxSteps) {
+                        // Max steps reached - emit final summary request
+                        LOG.warn("Max steps reached: {}", maxSteps);
+                        String summaryPrompt = """
+                                The maximum number of steps has been reached. Please provide a summary of the work completed so far,
+                                including what has been accomplished and what remains to be done. Be concise but informative.
+                                """;
+                        Message summaryRequest = github.ponyhuang.agentframework.types.message.UserMessage.create(summaryPrompt);
+                        List<Message> summaryMessages = new ArrayList<>(convMessages);
+                        summaryMessages.add(summaryRequest);
 
-            // Add schemas from builder (includes built-in task_done)
-            List<Map<String, Object>> builderTools = getTools();
-            if (builderTools != null) {
-                for (Map<String, Object> schema : builderTools) {
-                    if (!toolSchemas.contains(schema)) {
-                        toolSchemas.add(schema);
+                        ChatResponse summaryResponse = client.chat(ChatCompleteParams.builder()
+                                .messages(summaryMessages)
+                                .build());
+
+                        if (summaryResponse.getMessage() != null) {
+                            convMessages.add(summaryResponse.getMessage());
+                            sink.next(summaryResponse.getMessage());
+                        }
+                        sink.complete();
+                        return convMessages;
                     }
-                }
-            }
 
-            ChatCompleteParams params = ChatCompleteParams.builder()
-                    .messages(conversationMessages)
-                    .tools(toolSchemas)
-                    .build();
+                    LOG.debug("Step {}/{}", step, maxSteps);
 
-            // Call LLM
-            ChatResponse response = client.chat(params);
+                    // Build chat request - merge tool executor schemas with builder tools
+                    List<Map<String, Object>> toolSchemas = new ArrayList<>();
 
-            // Add assistant message to conversation
-            conversationMessages.add(response.getMessage());
-
-            // Check if we have a function call
-            if (response.hasFunctionCall()) {
-                // Handle function calls - ReAct loop
-                List<ToolUseBlock> toolCalls = response.getToolCalls();
-                if (toolCalls == null || toolCalls.isEmpty()) {
-                    break;
-                }
-
-                ToolUseBlock toolCall = toolCalls.get(0);
-                String functionName = toolCall.getName();
-                Map<String, Object> functionArgs = toolCall.getInput();
-                String toolCallId = toolCall.getId();
-
-                LOG.info("Executing tool: {}", functionName);
-
-                // Execute tool
-                Object toolResult;
-                try {
                     if (toolExecutor != null) {
-                        toolResult = toolExecutor.execute(functionName, functionArgs != null ? functionArgs : Collections.emptyMap());
-                    } else {
-                        toolResult = "Error: No tool executor configured";
+                        toolSchemas.addAll(toolExecutor.getToolSchemas());
                     }
-                } catch (Exception e) {
-                    LOG.error("Tool execution failed: {}", e.getMessage());
-                    toolResult = "Error: " + e.getMessage();
+
+                    List<Map<String, Object>> builderTools = getTools();
+                    if (builderTools != null) {
+                        for (Map<String, Object> schema : builderTools) {
+                            if (!toolSchemas.contains(schema)) {
+                                toolSchemas.add(schema);
+                            }
+                        }
+                    }
+
+                    ChatCompleteParams params = ChatCompleteParams.builder()
+                            .messages(convMessages)
+                            .tools(toolSchemas)
+                            .build();
+
+                    // Call LLM (blocking - wrapped in Mono for async semantics)
+                    ChatResponse response = client.chat(params);
+
+                    // Add assistant message to conversation
+                    convMessages.add(response.getMessage());
+                    sink.next(response.getMessage());
+
+                    // Check if we have a function call
+                    if (!response.hasFunctionCall()) {
+                        // No tool call - continue to next iteration to ask LLM again
+                        return convMessages;
+                    }
+
+                    List<ToolUseBlock> toolCalls = response.getToolCalls();
+                    if (toolCalls == null || toolCalls.isEmpty()) {
+                        // No valid tool calls - add a tool result message and continue
+                        LOG.error("No tool calls found in the response. Please provide a valid tool call.");
+                        String noToolResult = "No tools found in the response. Please provide a valid tool call.";
+                        Message toolMessage = ResultMessage.create(null, noToolResult);
+                        convMessages.add(toolMessage);
+                        return convMessages;
+                    }
+
+                    ToolUseBlock toolCall = toolCalls.get(0);
+                    String functionName = toolCall.getName();
+                    Map<String, Object> functionArgs = toolCall.getInput();
+                    String toolCallId = toolCall.getId();
+
+                    LOG.info("Executing tool: {}", functionName);
+
+                    // Execute tool
+                    Object toolResult;
+                    try {
+                        if (toolExecutor != null) {
+                            toolResult = toolExecutor.execute(functionName, functionArgs != null ? functionArgs : Collections.emptyMap());
+                        } else {
+                            toolResult = "Error: No tool executor configured";
+                        }
+                    } catch (Exception e) {
+                        LOG.error("Tool execution failed: {}", e.getMessage());
+                        toolResult = "Error: " + e.getMessage();
+                    }
+
+                    // Check for task_done signal
+                    String resultStr = toolResult != null ? toolResult.toString() : "";
+                    if (TaskDoneTool.isTaskComplete(resultStr)) {
+                        LOG.info("Task completed at step {}", step);
+                        // Note: Assistant message already sent above via sink.next(response.getMessage())
+                        // Just complete the flux without sending another message
+                        sink.complete();
+                        return convMessages;
+                    }
+
+                    // Add tool result message (for non-task_done results)
+                    Message toolMessage = ResultMessage.create(toolCallId, resultStr);
+                    convMessages.add(toolMessage);
+
+                    // Continue to next iteration
+                    return convMessages;
                 }
-
-                // Check for task_done signal
-                String resultStr = toolResult != null ? toolResult.toString() : "";
-                if (TaskDoneTool.isTaskComplete(resultStr)) {
-                    LOG.info("Task completed at step {}", currentStep);
-                    String message = TaskDoneTool.extractMessage(resultStr);
-                    Message completionMessage = AssistantMessage.create(message);
-                    conversationMessages.add(completionMessage);
-                    return Flux.fromIterable(conversationMessages);
-                }
-
-                // Add tool result message (for non-task_done results)
-                Message toolMessage = ResultMessage.create(toolCallId, resultStr);
-                conversationMessages.add(toolMessage);
-            }
-
-
-        }
-
-        if (currentStep >= maxSteps) {
-            LOG.warn("Max steps reached: {}", maxSteps);
-
-            // Make a final summary request to the LLM
-            String summaryPrompt = """
-                    The maximum number of steps has been reached. Please provide a summary of the work completed so far,
-                    including what has been accomplished and what remains to be done. Be concise but informative.
-                    """;
-
-            // Add a user message asking for summary
-            Message summaryRequest = github.ponyhuang.agentframework.types.message.UserMessage.create(summaryPrompt);
-            List<Message> summaryMessages = new ArrayList<>(conversationMessages);
-            summaryMessages.add(summaryRequest);
-
-            // Call LLM without tools for summary
-            ChatResponse summaryResponse = client.chat(ChatCompleteParams.builder()
-                    .messages(summaryMessages)
-                    .build());
-
-            List<Message> allMessages = new ArrayList<>(conversationMessages);
-            if (summaryResponse.getMessage() != null) {
-                allMessages.add(summaryResponse.getMessage());
-            }
-            return Flux.fromIterable(allMessages);
-        }
-
-        return Flux.fromIterable(conversationMessages);
+        );
     }
 
     /**
