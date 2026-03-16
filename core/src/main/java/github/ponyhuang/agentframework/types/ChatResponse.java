@@ -1,5 +1,9 @@
 package github.ponyhuang.agentframework.types;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.block.TextBlock;
 import github.ponyhuang.agentframework.types.block.ToolResultBlock;
@@ -8,11 +12,6 @@ import github.ponyhuang.agentframework.types.message.AssistantMessage;
 import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.ResultMessage;
 import github.ponyhuang.agentframework.types.message.UserMessage;
-
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +27,7 @@ public class ChatResponse {
     private final long created;
     private final String model;
     private final List<Message> messages;
+    private final List<Block> blocks;
     private final Usage usage;
     private final String finishReason;
     private final Map<String, Object> extraProperties;
@@ -42,6 +42,7 @@ public class ChatResponse {
         this.usage = builder.usage;
         this.finishReason = builder.finishReason;
         this.extraProperties = builder.extraProperties;
+        this.blocks = builder.blocks;
     }
 
     public String getId() {
@@ -70,6 +71,10 @@ public class ChatResponse {
 
     public Map<String, Object> getExtraProperties() {
         return extraProperties;
+    }
+
+    public List<Block> getBlocks() {
+        return blocks;
     }
 
     public Message getFirstMessage() {
@@ -137,17 +142,17 @@ public class ChatResponse {
                 msgList.add(messageToOpenAI(msg));
             }
             result.put("choices", List.of(Map.of(
-                "index", 0,
-                "message", msgList.get(0),
-                "finish_reason", finishReason != null ? finishReason : "stop"
+                    "index", 0,
+                    "message", msgList.get(0),
+                    "finish_reason", finishReason != null ? finishReason : "stop"
             )));
         }
 
         if (usage != null) {
             result.put("usage", Map.of(
-                "prompt_tokens", usage.getPromptTokens(),
-                "completion_tokens", usage.getCompletionTokens(),
-                "total_tokens", usage.getTotalTokens()
+                    "prompt_tokens", usage.getPromptTokens(),
+                    "completion_tokens", usage.getCompletionTokens(),
+                    "total_tokens", usage.getTotalTokens()
             ));
         }
 
@@ -163,7 +168,7 @@ public class ChatResponse {
                 Map<String, Object> functionCall = new HashMap<>();
                 functionCall.put("name", assistantMsg.getFunctionName());
                 functionCall.put("arguments", assistantMsg.getFunctionArguments() != null ?
-                    assistantMsg.getFunctionArguments().toString() : "{}");
+                        assistantMsg.getFunctionArguments().toString() : "{}");
                 result.put("function_call", functionCall);
             }
             if (assistantMsg.getTextContent() != null && !assistantMsg.getTextContent().isEmpty()) {
@@ -217,9 +222,9 @@ public class ChatResponse {
         if (map.containsKey("usage")) {
             Map<String, Object> usageMap = (Map<String, Object>) map.get("usage");
             builder.usage(new Usage(
-                ((Number) usageMap.getOrDefault("prompt_tokens", 0)).intValue(),
-                ((Number) usageMap.getOrDefault("completion_tokens", 0)).intValue(),
-                ((Number) usageMap.getOrDefault("total_tokens", 0)).intValue()
+                    ((Number) usageMap.getOrDefault("prompt_tokens", 0)).intValue(),
+                    ((Number) usageMap.getOrDefault("completion_tokens", 0)).intValue(),
+                    ((Number) usageMap.getOrDefault("total_tokens", 0)).intValue()
             ));
         }
 
@@ -231,15 +236,15 @@ public class ChatResponse {
         String role = (String) map.get("role");
         String content = map.containsKey("content") ? (String) map.get("content") : null;
         Map<String, Object> functionCall = map.containsKey("function_call") ?
-            (Map<String, Object>) map.get("function_call") : null;
+                (Map<String, Object>) map.get("function_call") : null;
 
         switch (role) {
             case "user":
                 return content != null ? UserMessage.create(content) : UserMessage.create();
             case "system":
                 return content != null ?
-                    github.ponyhuang.agentframework.types.message.SystemMessage.create(content) :
-                    github.ponyhuang.agentframework.types.message.SystemMessage.create();
+                        github.ponyhuang.agentframework.types.message.SystemMessage.create(content) :
+                        github.ponyhuang.agentframework.types.message.SystemMessage.create();
             case "tool":
                 String toolCallId = (String) map.get("tool_call_id");
                 return ResultMessage.create(toolCallId, content != null ? content : "");
@@ -314,10 +319,10 @@ public class ChatResponse {
         if (map.containsKey("usage")) {
             Map<String, Object> usageMap = (Map<String, Object>) map.get("usage");
             builder.usage(new Usage(
-                ((Number) usageMap.getOrDefault("input_tokens", 0)).intValue(),
-                ((Number) usageMap.getOrDefault("output_tokens", 0)).intValue(),
-                ((Number) usageMap.getOrDefault("input_tokens", 0)).intValue() +
-                ((Number) usageMap.getOrDefault("output_tokens", 0)).intValue()
+                    ((Number) usageMap.getOrDefault("input_tokens", 0)).intValue(),
+                    ((Number) usageMap.getOrDefault("output_tokens", 0)).intValue(),
+                    ((Number) usageMap.getOrDefault("input_tokens", 0)).intValue() +
+                            ((Number) usageMap.getOrDefault("output_tokens", 0)).intValue()
             ));
         }
 
@@ -356,6 +361,8 @@ public class ChatResponse {
         private Usage usage;
         private String finishReason;
         private Map<String, Object> extraProperties;
+        private List<Block> blocks;
+
 
         public Builder id(String id) {
             this.id = id;
@@ -399,6 +406,12 @@ public class ChatResponse {
             this.extraProperties = extraProperties;
             return this;
         }
+
+        public Builder blocks(List<Block> blocks) {
+            this.blocks = blocks;
+            return this;
+        }
+
 
         public ChatResponse build() {
             return new ChatResponse(this);

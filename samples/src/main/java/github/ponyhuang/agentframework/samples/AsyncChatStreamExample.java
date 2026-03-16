@@ -3,6 +3,7 @@ package github.ponyhuang.agentframework.samples;
 import github.ponyhuang.agentframework.providers.AnthropicChatClient;
 import github.ponyhuang.agentframework.types.ChatCompleteParams;
 import github.ponyhuang.agentframework.types.ChatResponse;
+import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 import reactor.core.publisher.Flux;
 
@@ -29,13 +30,12 @@ public class AsyncChatStreamExample {
 
         stream.subscribe(
                 chunk -> {
-                    if (chunk == null || chunk.getMessage() == null) {
+                    if (chunk == null || chunk.getBlocks() == null) {
                         return;
                     }
-                    String text = chunk.getMessage().getTextContent();
-                    if (text != null && !text.isBlank()) {
-                        System.out.print(text);
-                        buffer.append(text);
+                    for (Block block : chunk.getBlocks()) {
+                        System.out.print(block);
+                        buffer.append(block);
                     }
                 },
                 error -> {

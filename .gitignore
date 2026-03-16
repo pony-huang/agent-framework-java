@@ -55,3 +55,4 @@ openspec/
 /.idea/inspectionProfiles/Project_Default.xml
 /trajectory/trajectory.json
 /.idea/vcs.xml
+/claude-agent-sdk-python/

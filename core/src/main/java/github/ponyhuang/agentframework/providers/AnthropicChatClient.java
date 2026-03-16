@@ -1,16 +1,22 @@
 package github.ponyhuang.agentframework.providers;
 
+import com.anthropic.client.AnthropicClient;
+import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
 import com.anthropic.core.http.StreamResponse;
 import com.anthropic.models.messages.*;
-import github.ponyhuang.agentframework.types.*;
-import github.ponyhuang.agentframework.types.message.Message;
-import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import github.ponyhuang.agentframework.types.ChatCompleteParams;
+import github.ponyhuang.agentframework.types.ChatResponse;
+import github.ponyhuang.agentframework.types.block.*;
 import github.ponyhuang.agentframework.types.block.TextBlock;
+import github.ponyhuang.agentframework.types.block.ThinkingBlock;
 import github.ponyhuang.agentframework.types.block.ToolUseBlock;
-import reactor.core.publisher.Flux;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
 import java.time.Instant;
 import java.util.*;
@@ -25,7 +31,8 @@ public class AnthropicChatClient extends DefaultChatClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(AnthropicChatClient.class);
 
-    private final com.anthropic.client.AnthropicClient client;
+    private final AnthropicClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     private AnthropicChatClient(Builder builder) {
         super(builder.model);
@@ -49,13 +56,22 @@ public class AnthropicChatClient extends DefaultChatClient {
     public Flux<ChatResponse> chatStream(ChatCompleteParams params) {
         LOG.info("Anthropic chat stream started, model: {}", resolveModel(params));
         MessageCreateParams createParams = toAnthropicParams(params);
+
         return Flux.create(sink -> {
+            AccumulatorState state = new AccumulatorState();
+
             try (StreamResponse<RawMessageStreamEvent> streamResponse =
                          client.messages().createStreaming(createParams)) {
                 streamResponse.stream().forEach(event -> {
-                    ChatResponse mapped = toChatResponse(event);
-                    if (mapped != null) {
-                        sink.next(mapped);
+                    accumulate(state, event);
+                    ChatResponse response = toChatResponse(state);
+
+                    // Only emit if there's new content or usage update
+                    if (!response.getBlocks().isEmpty() || response.getUsage() != null) {
+                        sink.next(response);
+
+                        // Clear blocks after emitting to avoid duplicates
+                        state.blocks.clear();
                     }
                 });
                 sink.complete();
@@ -65,6 +81,95 @@ public class AnthropicChatClient extends DefaultChatClient {
                 sink.error(t);
             }
         });
+    }
+
+    private static class AccumulatorState {
+        String messageId;
+        List<Block> blocks = new ArrayList<>();
+        ChatResponse.Usage usage;
+        String finishReason;
+
+        // Current building blocks
+        StringBuilder currentText = new StringBuilder();
+        StringBuilder currentThinking = new StringBuilder();
+        String currentToolUseId;
+        String currentToolUseName;
+        StringBuilder currentToolUseInputJson = new StringBuilder();
+    }
+
+    private void accumulate(AccumulatorState acc, RawMessageStreamEvent event) {
+        if (event.isMessageStart()) {
+            acc.messageId = event.asMessageStart().message().id();
+        }
+
+        if (event.isContentBlockStart()) {
+            var block = event.asContentBlockStart().contentBlock();
+            if (block.isText()) {
+                acc.currentText = new StringBuilder();
+            } else if (block.isThinking()) {
+                acc.currentThinking = new StringBuilder();
+            } else if (block.isToolUse()) {
+                var toolUse = block.asToolUse();
+                acc.currentToolUseId = toolUse.id();
+                acc.currentToolUseName = toolUse.name();
+                acc.currentToolUseInputJson = new StringBuilder();
+            }
+        }
+
+        if (event.isContentBlockDelta()) {
+            var delta = event.asContentBlockDelta().delta();
+            delta.text().ifPresent(t -> acc.currentText.append(t.text()));
+            delta.thinking().ifPresent(t -> acc.currentThinking.append(t.thinking()));
+            delta.inputJson().ifPresent(i -> acc.currentToolUseInputJson.append(i.partialJson()));
+        }
+
+        if (event.isContentBlockStop()) {
+            if (!acc.currentText.isEmpty()) {
+                acc.blocks.add(TextBlock.of(acc.currentText.toString()));
+                acc.currentText = new StringBuilder();
+            }
+            if (!acc.currentThinking.isEmpty()) {
+                acc.blocks.add(ThinkingBlock.of(acc.currentThinking.toString()));
+                acc.currentThinking = new StringBuilder();
+            }
+            if (acc.currentToolUseId != null || !acc.currentToolUseInputJson.isEmpty()) {
+                Map<String, Object> input = new LinkedHashMap<>();
+                if (!acc.currentToolUseInputJson.isEmpty()) {
+                    try {
+                        input = mapper.readValue(acc.currentToolUseInputJson.toString(), Map.class);
+                    } catch (Exception e) {
+                        LOG.warn("Failed to parse tool input: {}", e.getMessage());
+                    }
+                }
+                acc.blocks.add(ToolUseBlock.of(
+                        acc.currentToolUseId != null ? acc.currentToolUseId : "",
+                        acc.currentToolUseName != null ? acc.currentToolUseName : "",
+                        input
+                ));
+                acc.currentToolUseId = null;
+                acc.currentToolUseName = null;
+                acc.currentToolUseInputJson = new StringBuilder();
+            }
+        }
+
+        if (event.isMessageDelta()) {
+            var delta = event.asMessageDelta();
+            int completionTokens = Math.toIntExact(delta.usage().outputTokens());
+            int promptTokens = Math.toIntExact(delta.usage().inputTokens().orElse(0L));
+            acc.usage = new ChatResponse.Usage(promptTokens, completionTokens, completionTokens);
+            acc.finishReason = delta.delta().stopReason().map(sr -> sr.asString()).orElse(null);
+        }
+    }
+
+    private ChatResponse toChatResponse(AccumulatorState acc) {
+        return ChatResponse.builder()
+                .id(acc.messageId)
+                .created(Instant.now().getEpochSecond())
+                .messages(List.of())
+                .blocks(new ArrayList<>(acc.blocks))
+                .usage(acc.usage)
+                .finishReason(acc.finishReason != null ? acc.finishReason : "")
+                .build();
     }
 
     public static Builder builder() {
@@ -118,35 +223,39 @@ public class AnthropicChatClient extends DefaultChatClient {
         }
 
         String role = message.getRoleAsString();
-        
-        if (role.equals("user") || role.equals("USER")) {
-            return MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(message.getTextContent())
-                    .build();
-        } else if (role.equals("assistant") || role.equals("ASSISTANT")) {
-            List<ContentBlockParam> blocks = buildAssistantContentBlocks(message);
-            if (!blocks.isEmpty()) {
+
+        switch (role) {
+            case "user", "USER" -> {
                 return MessageParam.builder()
-                        .role(MessageParam.Role.ASSISTANT)
-                        .contentOfBlockParams(blocks)
+                        .role(MessageParam.Role.USER)
+                        .content(message.getTextContent())
                         .build();
             }
-            return MessageParam.builder()
-                    .role(MessageParam.Role.ASSISTANT)
-                    .content(message.getTextContent())
-                    .build();
-        } else if (role.equals("tool") || role.equals("TOOL")) {
-            ToolResultBlockParam toolResult = ToolResultBlockParam.builder()
-                    .toolUseId(resolveToolCallId(message))
-                    .content(extractToolResultText(message))
-                    .build();
-            return MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .contentOfBlockParams(List.of(ContentBlockParam.ofToolResult(toolResult)))
-                    .build();
+            case "assistant", "ASSISTANT" -> {
+                List<ContentBlockParam> blocks = buildAssistantContentBlocks(message);
+                if (!blocks.isEmpty()) {
+                    return MessageParam.builder()
+                            .role(MessageParam.Role.ASSISTANT)
+                            .contentOfBlockParams(blocks)
+                            .build();
+                }
+                return MessageParam.builder()
+                        .role(MessageParam.Role.ASSISTANT)
+                        .content(message.getTextContent())
+                        .build();
+            }
+            case "tool", "TOOL" -> {
+                ToolResultBlockParam toolResult = ToolResultBlockParam.builder()
+                        .toolUseId(resolveToolCallId(message))
+                        .content(extractToolResultText(message))
+                        .build();
+                return MessageParam.builder()
+                        .role(MessageParam.Role.USER)
+                        .contentOfBlockParams(List.of(ContentBlockParam.ofToolResult(toolResult)))
+                        .build();
+            }
         }
-        
+
         return null;
     }
 
@@ -155,28 +264,26 @@ public class AnthropicChatClient extends DefaultChatClient {
             return List.of();
         }
         List<ContentBlockParam> blocks = new ArrayList<>();
-        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
+        for (Block block : message.getBlocks()) {
             if (block == null) {
                 continue;
             }
-            if (block instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
-                String text = ((github.ponyhuang.agentframework.types.block.TextBlock) block).getText();
+            if (block instanceof TextBlock) {
+                String text = ((TextBlock) block).getText();
                 if (text != null && !text.isBlank()) {
                     blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(text).build()));
                 }
                 continue;
             }
-            if (block instanceof github.ponyhuang.agentframework.types.block.ToolUseBlock) {
-                github.ponyhuang.agentframework.types.block.ToolUseBlock toolUseBlock = 
-                        (github.ponyhuang.agentframework.types.block.ToolUseBlock) block;
+            if (block instanceof ToolUseBlock toolUseBlock) {
                 String name = toolUseBlock.getName();
                 String id = toolUseBlock.getId();
                 Map<String, Object> args = toolUseBlock.getInput();
-                
+
                 if (name == null || name.isBlank()) {
                     continue;
                 }
-                
+
                 if (id == null || id.isBlank()) {
                     id = "tool_" + UUID.randomUUID();
                 }
@@ -257,7 +364,7 @@ public class AnthropicChatClient extends DefaultChatClient {
 
     private ChatResponse toChatResponse(com.anthropic.models.messages.Message message) {
         Message assistantMessage = toAgentMessage(message);
-        String finishReason = message.stopReason().map(com.anthropic.models.messages.StopReason::asString).orElse(null);
+        String finishReason = message.stopReason().map(StopReason::asString).orElse(null);
 
         int promptTokens = Math.toIntExact(message.usage().inputTokens());
         int completionTokens = Math.toIntExact(message.usage().outputTokens());
@@ -275,46 +382,8 @@ public class AnthropicChatClient extends DefaultChatClient {
                 .finishReason(finishReason)
                 .build();
     }
-
-    private ChatResponse toChatResponse(RawMessageStreamEvent event) {
-        if (event.isMessageStart()) {
-            return toChatResponse(event.asMessageStart().message());
-        }
-
-        if (event.isContentBlockDelta()) {
-            RawContentBlockDeltaEvent deltaEvent = event.asContentBlockDelta();
-            String text = extractDeltaText(deltaEvent);
-            if (text == null || text.isBlank()) {
-                return null;
-            }
-            Message chunkMessage = AssistantMessage.create(text);
-            return ChatResponse.builder()
-                    .created(Instant.now().getEpochSecond())
-                    .messages(List.of(chunkMessage))
-                    .build();
-        }
-
-        if (event.isMessageDelta()) {
-            RawMessageDeltaEvent deltaEvent = event.asMessageDelta();
-            String finishReason = deltaEvent.delta().stopReason()
-                    .map(com.anthropic.models.messages.StopReason::asString)
-                    .orElse(null);
-            int completionTokens = Math.toIntExact(deltaEvent.usage().outputTokens());
-            ChatResponse.Usage usage = new ChatResponse.Usage(0, completionTokens, completionTokens);
-            Message assistantMessage = AssistantMessage.create();
-            return ChatResponse.builder()
-                    .created(Instant.now().getEpochSecond())
-                    .messages(List.of(assistantMessage))
-                    .usage(usage)
-                    .finishReason(finishReason)
-                    .build();
-        }
-
-        return null;
-    }
-
     private Message toAgentMessage(com.anthropic.models.messages.Message message) {
-        List<github.ponyhuang.agentframework.types.block.Block> blocks = new ArrayList<>();
+        List<Block> blocks = new ArrayList<>();
         for (ContentBlock block : message.content()) {
             if (block.isText()) {
                 String text = block.asText().text();
@@ -329,16 +398,6 @@ public class AnthropicChatClient extends DefaultChatClient {
             }
         }
         return AssistantMessage.fromBlocks(blocks);
-    }
-
-    private String extractDeltaText(RawContentBlockDeltaEvent deltaEvent) {
-        if (deltaEvent.delta().isText()) {
-            return deltaEvent.delta().asText().text();
-        }
-        if (deltaEvent.delta().isThinking()) {
-            return deltaEvent.delta().asThinking().thinking();
-        }
-        return null;
     }
 
     private String resolveModel(ChatCompleteParams params) {
@@ -373,18 +432,18 @@ public class AnthropicChatClient extends DefaultChatClient {
         if (message.getBlocks() == null) {
             return message.getTextContent();
         }
-        for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
-            if (block instanceof github.ponyhuang.agentframework.types.block.ToolResultBlock) {
-                github.ponyhuang.agentframework.types.block.ToolResultBlock toolResultBlock = 
-                        (github.ponyhuang.agentframework.types.block.ToolResultBlock) block;
+        for (Block block : message.getBlocks()) {
+            if (block instanceof ToolResultBlock) {
+                ToolResultBlock toolResultBlock =
+                        (ToolResultBlock) block;
                 String content = toolResultBlock.getContent();
                 if (content != null && !content.isEmpty()) {
                     return content;
                 }
             }
-            if (block instanceof github.ponyhuang.agentframework.types.block.TextBlock) {
-                github.ponyhuang.agentframework.types.block.TextBlock textBlock = 
-                        (github.ponyhuang.agentframework.types.block.TextBlock) block;
+            if (block instanceof TextBlock) {
+                TextBlock textBlock =
+                        (TextBlock) block;
                 String text = textBlock.getText();
                 if (text != null && !text.isEmpty()) {
                     return text;
@@ -399,10 +458,10 @@ public class AnthropicChatClient extends DefaultChatClient {
             return message.getToolCallId();
         }
         if (message.getBlocks() != null) {
-            for (github.ponyhuang.agentframework.types.block.Block block : message.getBlocks()) {
-                if (block instanceof github.ponyhuang.agentframework.types.block.ToolResultBlock) {
-                    github.ponyhuang.agentframework.types.block.ToolResultBlock toolResultBlock = 
-                            (github.ponyhuang.agentframework.types.block.ToolResultBlock) block;
+            for (Block block : message.getBlocks()) {
+                if (block instanceof ToolResultBlock) {
+                    ToolResultBlock toolResultBlock =
+                            (ToolResultBlock) block;
                     String toolUseId = toolResultBlock.getToolUseId();
                     if (toolUseId != null && !toolUseId.isBlank()) {
                         return toolUseId;
@@ -428,12 +487,12 @@ public class AnthropicChatClient extends DefaultChatClient {
     }
 
     private static final class JsonCodec {
-        private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
-                new com.fasterxml.jackson.databind.ObjectMapper();
+        private static final ObjectMapper MAPPER =
+                new ObjectMapper();
     }
 
     public static class Builder {
-        private com.anthropic.client.AnthropicClient anthropicClient;
+        private AnthropicClient anthropicClient;
         private String apiKey;
         private String baseUrl;
         private String model;
@@ -453,7 +512,7 @@ public class AnthropicChatClient extends DefaultChatClient {
             return this;
         }
 
-        public Builder client(com.anthropic.client.AnthropicClient client) {
+        public Builder client(AnthropicClient client) {
             this.anthropicClient = client;
             return this;
         }
@@ -464,8 +523,8 @@ public class AnthropicChatClient extends DefaultChatClient {
                     throw new IllegalStateException("Anthropic client is required. Use apiKey() or client() to set it.");
                 }
 
-                com.anthropic.client.okhttp.AnthropicOkHttpClient.Builder sdkBuilder =
-                        com.anthropic.client.okhttp.AnthropicOkHttpClient.builder().apiKey(apiKey);
+                AnthropicOkHttpClient.Builder sdkBuilder =
+                        AnthropicOkHttpClient.builder().apiKey(apiKey);
                 if (baseUrl != null && !baseUrl.isBlank()) {
                     sdkBuilder.baseUrl(baseUrl);
                 }
