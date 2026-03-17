@@ -1,42 +1,28 @@
 package github.ponyhuang.agentframework.providers;
 
-import github.ponyhuang.agentframework.types.ChatCompleteParams;
-import github.ponyhuang.agentframework.types.ChatResponse;
-import github.ponyhuang.agentframework.types.message.Message;
-import github.ponyhuang.agentframework.types.message.AssistantMessage;
-import github.ponyhuang.agentframework.types.block.TextBlock;
-import github.ponyhuang.agentframework.types.block.Block;
-import github.ponyhuang.agentframework.types.block.ToolUseBlock;
-import github.ponyhuang.agentframework.types.block.ToolResultBlock;
-import github.ponyhuang.agentframework.types.Role;
 import com.openai.core.JsonValue;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.FunctionDefinition;
 import com.openai.models.FunctionParameters;
-import com.openai.models.chat.completions.ChatCompletion;
-import com.openai.models.chat.completions.ChatCompletionChunk;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.chat.completions.ChatCompletionFunctionTool;
-import com.openai.models.chat.completions.ChatCompletionMessage;
-import com.openai.models.chat.completions.ChatCompletionMessageFunctionToolCall;
-import com.openai.models.chat.completions.ChatCompletionMessageParam;
-import com.openai.models.chat.completions.ChatCompletionSystemMessageParam;
-import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
-import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
-import reactor.core.publisher.Flux;
+import com.openai.models.chat.completions.*;
+import github.ponyhuang.agentframework.types.ChatCompleteParams;
+import github.ponyhuang.agentframework.types.ChatResponse;
+import github.ponyhuang.agentframework.types.Role;
+import github.ponyhuang.agentframework.types.block.Block;
+import github.ponyhuang.agentframework.types.block.TextBlock;
+import github.ponyhuang.agentframework.types.block.ToolResultBlock;
+import github.ponyhuang.agentframework.types.block.ToolUseBlock;
+import github.ponyhuang.agentframework.types.message.AssistantMessage;
+import github.ponyhuang.agentframework.types.message.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * OpenAI Chat Client implementation.
- *
+ * <p>
  * This class keeps the provider integration surface compile-safe against the
  * current openai-java SDK layout.
  */
@@ -68,10 +54,24 @@ public class OpenAIChatClient extends DefaultChatClient {
     public Flux<ChatResponse> chatStream(ChatCompleteParams params) {
         LOG.info("OpenAI chat stream started, model: {}", resolveModel(params));
         ChatCompletionCreateParams createParams = toOpenAIParams(params);
+
         return Flux.create(sink -> {
+            AccumulatorState state = new AccumulatorState();
+
             try (StreamResponse<ChatCompletionChunk> streamResponse =
                          client.chat().completions().createStreaming(createParams)) {
-                streamResponse.stream().forEach(chunk -> sink.next(toChatResponse(chunk)));
+                streamResponse.stream().forEach(chunk -> {
+                    accumulate(state, chunk);
+                    ChatResponse response = toChatResponse(state);
+
+                    // Only emit if there's new content or usage update
+                    if (!response.getBlocks().isEmpty() || response.getUsage() != null) {
+                        sink.next(response);
+
+                        // Clear blocks after emitting to avoid duplicates
+                        state.blocks.clear();
+                    }
+                });
                 sink.complete();
                 LOG.info("OpenAI chat stream completed");
             } catch (Throwable t) {
@@ -79,6 +79,174 @@ public class OpenAIChatClient extends DefaultChatClient {
                 sink.error(t);
             }
         });
+    }
+
+    private static class AccumulatorState {
+        String id;
+        long created;
+        String model;
+        List<Block> blocks = new ArrayList<>();
+        ChatResponse.Usage usage;
+        String finishReason;
+
+        // Current building content
+        StringBuilder currentText = new StringBuilder();
+        StringBuilder currentReasoning = new StringBuilder();
+
+        // Current tool call being built
+        String currentToolCallId;
+        String currentToolCallName;
+        StringBuilder currentToolCallArguments = new StringBuilder();
+
+        // Legacy functionCall support
+        StringBuilder currentFunctionCallName = new StringBuilder();
+        StringBuilder currentFunctionCallArguments = new StringBuilder();
+    }
+
+    private void accumulate(AccumulatorState acc, ChatCompletionChunk chunk) {
+        // Set basic info from first chunk
+        if (acc.id == null && chunk.id() != null) {
+            acc.id = chunk.id();
+            acc.created = chunk.created();
+            acc.model = chunk.model();
+        }
+
+        for (ChatCompletionChunk.Choice choice : chunk.choices()) {
+            ChatCompletionChunk.Choice.Delta delta = choice.delta();
+
+            // Accumulate text content
+            delta.content().ifPresent(text -> acc.currentText.append(text));
+
+            // Accumulate reasoning content
+            String reasoning = extractReasoningContent(delta._additionalProperties());
+            if (reasoning != null) {
+                acc.currentReasoning.append(reasoning);
+            }
+
+            // Handle tool calls
+            if (delta.toolCalls().isPresent()) {
+                for (ChatCompletionChunk.Choice.Delta.ToolCall toolCall : delta.toolCalls().get()) {
+                    // Start new tool call or continue existing one
+                    toolCall.id().ifPresent(id -> {
+                        if (!id.equals(acc.currentToolCallId)) {
+                            // Flush previous tool call if exists
+                            flushToolCall(acc);
+                            acc.currentToolCallId = id;
+                        }
+                    });
+
+                    toolCall.function().ifPresent(fn -> {
+                        fn.name().ifPresent(name -> acc.currentToolCallName = name);
+                        fn.arguments().ifPresent(args -> acc.currentToolCallArguments.append(args));
+                    });
+                }
+            }
+
+            // Handle legacy functionCall
+            delta.functionCall().ifPresent(functionCall -> {
+                functionCall.name().ifPresent(name -> {
+                    if (!name.equals(acc.currentFunctionCallName.toString())) {
+                        acc.currentFunctionCallName = new StringBuilder(name);
+                    }
+                });
+                functionCall.arguments().ifPresent(args -> acc.currentFunctionCallArguments.append(args));
+            });
+
+            // Update finish reason
+            if (choice.finishReason().isPresent()) {
+                acc.finishReason = choice.finishReason().get().asString();
+            }
+        }
+
+        // Update usage (may come in later chunks)
+        chunk.usage().ifPresent(u -> {
+            acc.usage = new ChatResponse.Usage(
+                    Math.toIntExact(u.promptTokens()),
+                    Math.toIntExact(u.completionTokens()),
+                    Math.toIntExact(u.totalTokens()));
+        });
+
+        // Flush accumulated content to blocks
+        flushContent(acc);
+    }
+
+    private void flushContent(AccumulatorState acc) {
+        boolean hasContent = false;
+
+        // Flush text content
+        if (!acc.currentText.isEmpty()) {
+            acc.blocks.add(TextBlock.of(acc.currentText.toString()));
+            acc.currentText = new StringBuilder();
+            hasContent = true;
+        }
+
+        // Flush reasoning content (only if no text or separate block)
+        if (!acc.currentReasoning.isEmpty()) {
+            // For reasoning, we could add a separate block or append to text
+            // Adding as separate block for clarity
+            acc.blocks.add(TextBlock.of(acc.currentReasoning.toString()));
+            acc.currentReasoning = new StringBuilder();
+            hasContent = true;
+        }
+
+        // Flush tool call if complete
+        if (acc.currentToolCallId != null || !acc.currentToolCallArguments.isEmpty()) {
+            flushToolCall(acc);
+            hasContent = true;
+        }
+
+        // Flush legacy functionCall
+        if (!acc.currentFunctionCallName.isEmpty() || !acc.currentFunctionCallArguments.isEmpty()) {
+            Map<String, Object> argsMap = parseJsonObjectSafe(acc.currentFunctionCallArguments.toString());
+            acc.blocks.add(ToolUseBlock.of(
+                    "temp",
+                    acc.currentFunctionCallName.toString(),
+                    argsMap));
+            acc.currentFunctionCallName = new StringBuilder();
+            acc.currentFunctionCallArguments = new StringBuilder();
+            hasContent = true;
+        }
+    }
+
+    private void flushToolCall(AccumulatorState acc) {
+        if (acc.currentToolCallId == null && acc.currentToolCallArguments.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> argsMap = parseJsonObjectSafe(acc.currentToolCallArguments.toString());
+        acc.blocks.add(ToolUseBlock.of(
+                acc.currentToolCallId != null ? acc.currentToolCallId : "tool_" + UUID.randomUUID(),
+                acc.currentToolCallName != null ? acc.currentToolCallName : "",
+                argsMap));
+
+        acc.currentToolCallId = null;
+        acc.currentToolCallName = null;
+        acc.currentToolCallArguments = new StringBuilder();
+    }
+
+    private Map<String, Object> parseJsonObjectSafe(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return new LinkedHashMap<>();
+        }
+        try {
+            return JsonCodec.MAPPER.readValue(raw, Map.class);
+        } catch (Exception e) {
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("__raw", raw);
+            return fallback;
+        }
+    }
+
+    private ChatResponse toChatResponse(AccumulatorState acc) {
+        return ChatResponse.builder()
+                .id(acc.id != null ? acc.id : "")
+                .created(acc.created)
+                .model(acc.model != null ? acc.model : "")
+                .messages(List.of())
+                .blocks(new ArrayList<>(acc.blocks))
+                .usage(acc.usage)
+                .finishReason(acc.finishReason != null ? acc.finishReason : "")
+                .build();
     }
 
     public static Builder builder() {
@@ -143,83 +311,86 @@ public class OpenAIChatClient extends DefaultChatClient {
         }
 
         String role = message.getRoleAsString();
-        
-        if (role.equals("system") || role.equals("SYSTEM")) {
-            return ChatCompletionMessageParam.ofSystem(
-                    ChatCompletionSystemMessageParam.builder()
-                            .content(message.getTextContent())
-                            .build());
-        } else if (role.equals("user") || role.equals("USER")) {
-            return ChatCompletionMessageParam.ofUser(
-                    ChatCompletionUserMessageParam.builder()
-                            .content(message.getTextContent())
-                            .build());
-        } else if (role.equals("assistant") || role.equals("ASSISTANT")) {
-            com.openai.models.chat.completions.ChatCompletionAssistantMessageParam.Builder assistantBuilder =
-                    com.openai.models.chat.completions.ChatCompletionAssistantMessageParam.builder();
-            if (message.getTextContent() != null && !message.getTextContent().isBlank()) {
-                assistantBuilder.content(message.getTextContent());
+
+        switch (role) {
+            case "system", "SYSTEM" -> {
+                return ChatCompletionMessageParam.ofSystem(
+                        ChatCompletionSystemMessageParam.builder()
+                                .content(message.getTextContent())
+                                .build());
             }
-            boolean hasToolCall = false;
-            
-            if (message instanceof AssistantMessage) {
-                AssistantMessage assistantMsg = (AssistantMessage) message;
-                if (assistantMsg.hasFunctionCall()) {
-                    hasToolCall = true;
-                    
-                    // Handle old-style functionCall map
-                    Map<String, Object> functionCall = assistantMsg.getFunctionCall();
-                    if (functionCall != null) {
-                        ChatCompletionMessageFunctionToolCall.Function function =
-                                ChatCompletionMessageFunctionToolCall.Function.builder()
-                                        .name(asNonBlankString(functionCall.get("name")).orElse("tool"))
-                                        .arguments(toJsonString(functionCall.get("arguments")))
-                                        .build();
-                        assistantBuilder.addToolCall(
-                                ChatCompletionMessageFunctionToolCall.builder()
-                                        .id(asNonBlankString(functionCall.get("id"))
-                                                .orElseGet(() -> "call_" + UUID.randomUUID()))
-                                        .function(function)
-                                        .build());
-                    }
-                    
-                    // Handle new-style ToolUseBlock
-                    if (message.getBlocks() != null) {
-                        for (Block block : message.getBlocks()) {
-                            if (block instanceof ToolUseBlock) {
-                                ToolUseBlock toolUse = (ToolUseBlock) block;
-                                ChatCompletionMessageFunctionToolCall.Function function =
-                                        ChatCompletionMessageFunctionToolCall.Function.builder()
-                                                .name(toolUse.getName())
-                                                .arguments(toolUse.getInput() != null ? toJsonString(toolUse.getInput()) : "{}")
-                                                .build();
-                                assistantBuilder.addToolCall(
-                                        ChatCompletionMessageFunctionToolCall.builder()
-                                                .id(toolUse.getId() != null ? toolUse.getId() : "call_" + UUID.randomUUID())
-                                                .function(function)
-                                                .build());
+            case "user", "USER" -> {
+                return ChatCompletionMessageParam.ofUser(
+                        ChatCompletionUserMessageParam.builder()
+                                .content(message.getTextContent())
+                                .build());
+            }
+            case "assistant", "ASSISTANT" -> {
+                ChatCompletionAssistantMessageParam.Builder assistantBuilder =
+                        ChatCompletionAssistantMessageParam.builder();
+                if (message.getTextContent() != null && !message.getTextContent().isBlank()) {
+                    assistantBuilder.content(message.getTextContent());
+                }
+                boolean hasToolCall = false;
+
+                if (message instanceof AssistantMessage assistantMsg) {
+                    if (assistantMsg.hasFunctionCall()) {
+                        hasToolCall = true;
+
+                        // Handle old-style functionCall map
+                        Map<String, Object> functionCall = assistantMsg.getFunctionCall();
+                        if (functionCall != null) {
+                            ChatCompletionMessageFunctionToolCall.Function function =
+                                    ChatCompletionMessageFunctionToolCall.Function.builder()
+                                            .name(asNonBlankString(functionCall.get("name")).orElse("tool"))
+                                            .arguments(toJsonString(functionCall.get("arguments")))
+                                            .build();
+                            assistantBuilder.addToolCall(
+                                    ChatCompletionMessageFunctionToolCall.builder()
+                                            .id(asNonBlankString(functionCall.get("id"))
+                                                    .orElseGet(() -> "call_" + UUID.randomUUID()))
+                                            .function(function)
+                                            .build());
+                        }
+
+                        // Handle new-style ToolUseBlock
+                        if (message.getBlocks() != null) {
+                            for (Block block : message.getBlocks()) {
+                                if (block instanceof ToolUseBlock toolUse) {
+                                    ChatCompletionMessageFunctionToolCall.Function function =
+                                            ChatCompletionMessageFunctionToolCall.Function.builder()
+                                                    .name(toolUse.getName())
+                                                    .arguments(toolUse.getInput() != null ? toJsonString(toolUse.getInput()) : "{}")
+                                                    .build();
+                                    assistantBuilder.addToolCall(
+                                            ChatCompletionMessageFunctionToolCall.builder()
+                                                    .id(toolUse.getId() != null ? toolUse.getId() : "call_" + UUID.randomUUID())
+                                                    .function(function)
+                                                    .build());
+                                }
                             }
                         }
                     }
                 }
+
+                if (hasToolCall) {
+                    assistantBuilder.putAdditionalProperty("reasoning_content", JsonValue.from(""));
+                }
+                return ChatCompletionMessageParam.ofAssistant(assistantBuilder.build());
             }
-            
-            if (hasToolCall) {
-                assistantBuilder.putAdditionalProperty("reasoning_content", JsonValue.from(""));
+            case "tool", "TOOL" -> {
+                String toolCallId = resolveToolCallId(message);
+                if (toolCallId == null || toolCallId.isBlank()) {
+                    toolCallId = "tool_" + UUID.randomUUID();
+                }
+                return ChatCompletionMessageParam.ofTool(
+                        ChatCompletionToolMessageParam.builder()
+                                .toolCallId(toolCallId)
+                                .content(extractToolResultText(message))
+                                .build());
             }
-            return ChatCompletionMessageParam.ofAssistant(assistantBuilder.build());
-        } else if (role.equals("tool") || role.equals("TOOL")) {
-            String toolCallId = resolveToolCallId(message);
-            if (toolCallId == null || toolCallId.isBlank()) {
-                toolCallId = "tool_" + UUID.randomUUID();
-            }
-            return ChatCompletionMessageParam.ofTool(
-                    ChatCompletionToolMessageParam.builder()
-                            .toolCallId(toolCallId)
-                            .content(extractToolResultText(message))
-                            .build());
         }
-        
+
         return null;
     }
 
@@ -272,94 +443,28 @@ public class OpenAIChatClient extends DefaultChatClient {
                 .build();
     }
 
-    private ChatResponse toChatResponse(ChatCompletionChunk chunk) {
-        List<Message> messages = new ArrayList<>();
-        String finishReason = null;
-        for (ChatCompletionChunk.Choice choice : chunk.choices()) {
-            Message message = toAgentMessage(choice.delta());
-            messages.add(message);
-            finishReason = choice.finishReason().map(ChatCompletionChunk.Choice.FinishReason::asString).orElse(null);
-        }
-
-        ChatResponse.Usage usage = chunk.usage()
-                .map(u -> new ChatResponse.Usage(
-                        Math.toIntExact(u.promptTokens()),
-                        Math.toIntExact(u.completionTokens()),
-                        Math.toIntExact(u.totalTokens())))
-                .orElse(null);
-
-        return ChatResponse.builder()
-                .id(chunk.id())
-                .created(chunk.created())
-                .model(chunk.model())
-                .messages(messages)
-                .usage(usage)
-                .finishReason(finishReason)
-                .build();
-    }
-
     private Message toAgentMessage(ChatCompletionMessage message) {
         List<github.ponyhuang.agentframework.types.block.Block> blocks = new ArrayList<>();
-        
+
         message.content().ifPresent(text -> {
             if (!text.isBlank()) {
                 blocks.add(new TextBlock(text));
             }
         });
-        
+
         String reasoning = extractReasoningContent(message._additionalProperties());
-        if ((blocks.isEmpty() || blocks.stream().noneMatch(b -> b instanceof TextBlock)) 
+        if ((blocks.isEmpty() || blocks.stream().noneMatch(b -> b instanceof TextBlock))
                 && reasoning != null && !reasoning.isBlank()) {
             blocks.add(new TextBlock(reasoning));
         }
-        
+
         appendToolCalls(blocks, message.toolCalls());
-        
+
         message.functionCall().ifPresent(functionCall -> {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("name", functionCall.name());
             payload.put("arguments", parseJsonObject(functionCall.arguments()));
             blocks.add(ToolUseBlock.of("temp", functionCall.name(), (Map<String, Object>) parseJsonObject(functionCall.arguments())));
-        });
-        
-        return AssistantMessage.fromBlocks(blocks);
-    }
-
-    private Message toAgentMessage(ChatCompletionChunk.Choice.Delta delta) {
-        List<github.ponyhuang.agentframework.types.block.Block> blocks = new ArrayList<>();
-        
-        delta.content().ifPresent(text -> {
-            if (!text.isBlank()) {
-                blocks.add(new TextBlock(text));
-            }
-        });
-
-        if (delta.toolCalls().isPresent()) {
-            for (ChatCompletionChunk.Choice.Delta.ToolCall toolCall : delta.toolCalls().get()) {
-                Map<String, Object> payload = new LinkedHashMap<>();
-                toolCall.id().ifPresent(id -> payload.put("id", id));
-                toolCall.function().ifPresent(fn -> {
-                    fn.name().ifPresent(name -> payload.put("name", name));
-                    fn.arguments().ifPresent(args -> payload.put("arguments", parseJsonObject(args)));
-                });
-                if (!payload.isEmpty()) {
-                    String id = (String) payload.getOrDefault("id", "tool_" + UUID.randomUUID());
-                    String name = (String) payload.get("name");
-                    Object args = payload.get("arguments");
-                    Map<String, Object> argsMap = args instanceof Map ? (Map<String, Object>) args : Map.of("arguments", args);
-                    blocks.add(ToolUseBlock.of(id, name, argsMap));
-                }
-            }
-        }
-
-        delta.functionCall().ifPresent(functionCall -> {
-            Map<String, Object> payload = new LinkedHashMap<>();
-            functionCall.name().ifPresent(name -> payload.put("name", name));
-            functionCall.arguments().ifPresent(args -> payload.put("arguments", parseJsonObject(args)));
-            String name = (String) payload.getOrDefault("name", "function");
-            Object args = payload.get("arguments");
-            Map<String, Object> argsMap = args instanceof Map ? (Map<String, Object>) args : Map.of("arguments", args);
-            blocks.add(ToolUseBlock.of("temp", name, argsMap));
         });
 
         return AssistantMessage.fromBlocks(blocks);
