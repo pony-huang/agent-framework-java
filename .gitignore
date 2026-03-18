@@ -56,3 +56,5 @@ openspec/
 /trajectory/trajectory.json
 /.idea/vcs.xml
 /claude-agent-sdk-python/
+/.specify/
+/specs/

@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DefaultSession implements Session {
 
     private final String id;
+    private final String parentSessionId;  // null for original sessions
     private final List<Message> messages = Collections.synchronizedList(new ArrayList<>());
     private final Map<String, Object> metadata = new ConcurrentHashMap<>();
 
@@ -21,6 +22,17 @@ public class DefaultSession implements Session {
 
     public DefaultSession(String id) {
         this.id = id;
+        this.parentSessionId = null;
+    }
+
+    /**
+     * Create a forked session.
+     */
+    private DefaultSession(String id, String parentSessionId, List<Message> messages, Map<String, Object> metadata) {
+        this.id = id;
+        this.parentSessionId = parentSessionId;
+        this.messages.addAll(messages);
+        this.metadata.putAll(metadata);
     }
 
     @Override
@@ -129,6 +141,17 @@ public class DefaultSession implements Session {
     @Override
     public void updateLastActiveTime() {
         this.lastActiveTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public Session fork() {
+        String forkId = this.id + "-fork-" + System.currentTimeMillis();
+        return new DefaultSession(forkId, this.id, new ArrayList<>(messages), new HashMap<>(metadata));
+    }
+
+    @Override
+    public String getParentSessionId() {
+        return parentSessionId;
     }
 
     private void trimMessages() {

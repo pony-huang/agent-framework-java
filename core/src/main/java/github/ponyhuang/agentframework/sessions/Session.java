@@ -45,4 +45,33 @@ public interface Session {
     long getLastActiveTime();
 
     void updateLastActiveTime();
+
+    // Fork/Resume support
+    /**
+     * Create a forked copy of this session.
+     * The fork is independent - changes to the fork don't affect the original.
+     *
+     * @return a new Session that is a copy of this one
+     */
+    Session fork();
+
+    /**
+     * Resume a session from a stored state.
+     *
+     * @param sessionId the ID of the session to resume
+     * @return the resumed session, or null if not found
+     */
+    static Session resume(String sessionId) {
+        // Default implementation - subclasses should override
+        return null;
+    }
+
+    /**
+     * Get the parent session ID if this is a fork.
+     *
+     * @return parent session ID, or null if not a fork
+     */
+    default String getParentSessionId() {
+        return null;
+    }
 }

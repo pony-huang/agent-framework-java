@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -36,6 +37,7 @@ public abstract class BaseAgent implements Agent {
     protected List<Map<String, Object>> tools;
     protected Map<String, Object> defaultOptions;
     protected HookEventBus hookEventBus;
+    protected Map<String, AgentDefinition> agents = new HashMap<>();
 
     protected BaseAgent() {
         this.tools = new ArrayList<>();
@@ -68,6 +70,23 @@ public abstract class BaseAgent implements Agent {
     @Override
     public List<Map<String, Object>> getTools() {
         return new ArrayList<>(tools);
+    }
+
+    /**
+     * Get a registered sub-agent by name.
+     *
+     * @param name the agent name
+     * @return the agent definition, or empty if not found
+     */
+    public Optional<AgentDefinition> getAgent(String name) {
+        return Optional.ofNullable(agents.get(name));
+    }
+
+    /**
+     * Get all registered agents.
+     */
+    public Map<String, AgentDefinition> getAgents() {
+        return Collections.unmodifiableMap(agents);
     }
 
     @Override

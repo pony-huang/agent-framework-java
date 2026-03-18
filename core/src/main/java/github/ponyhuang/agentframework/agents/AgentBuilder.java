@@ -16,8 +16,10 @@ import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Builder for creating Agent instances.
@@ -32,6 +34,14 @@ public class AgentBuilder {
     private Map<String, Object> defaultOptions = new HashMap<>();
     private ToolExecutor toolExecutor = new ToolExecutor();
     private HookEventBus hookEventBus = new HookEventBus();
+
+    // New alignment features
+    private Set<String> allowedTools = new HashSet<>();
+    private Set<String> disallowedTools = new HashSet<>();
+    private double maxBudgetUsd = 0.0;  // 0 means no limit
+    private String fallbackModel;
+    private PermissionMode permissionMode = PermissionMode.DEFAULT;
+    private Map<String, AgentDefinition> agents = new HashMap<>();
 
     public static AgentBuilder builder() {
         return new AgentBuilder();
@@ -210,6 +220,134 @@ public class AgentBuilder {
     }
 
     /**
+     * Sets the tools that are auto-approved (always allowed).
+     *
+     * @param allowedTools the set of allowed tool names
+     * @return this builder
+     */
+    public AgentBuilder allowedTools(Set<String> allowedTools) {
+        if (allowedTools != null) {
+            this.allowedTools = new HashSet<>(allowedTools);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the tools that are explicitly disallowed (always denied).
+     *
+     * @param disallowedTools the set of disallowed tool names
+     * @return this builder
+     */
+    public AgentBuilder disallowedTools(Set<String> disallowedTools) {
+        if (disallowedTools != null) {
+            this.disallowedTools = new HashSet<>(disallowedTools);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the maximum budget in USD for the agent execution.
+     * When the accumulated cost exceeds this limit, execution stops.
+     *
+     * @param maxBudgetUsd the maximum budget in USD (0 or negative means unlimited)
+     * @return this builder
+     */
+    public AgentBuilder maxBudgetUsd(double maxBudgetUsd) {
+        this.maxBudgetUsd = maxBudgetUsd > 0 ? maxBudgetUsd : 0.0;
+        return this;
+    }
+
+    /**
+     * Sets the fallback model to use when the primary model fails.
+     *
+     * @param fallbackModel the fallback model identifier
+     * @return this builder
+     */
+    public AgentBuilder fallbackModel(String fallbackModel) {
+        this.fallbackModel = fallbackModel;
+        return this;
+    }
+
+    /**
+     * Sets the permission mode for tool execution.
+     *
+     * @param permissionMode the permission mode
+     * @return this builder
+     */
+    public AgentBuilder permissionMode(PermissionMode permissionMode) {
+        this.permissionMode = permissionMode != null ? permissionMode : PermissionMode.DEFAULT;
+        return this;
+    }
+
+    /**
+     * Gets the allowed tools set.
+     */
+    public Set<String> getAllowedTools() {
+        return allowedTools;
+    }
+
+    /**
+     * Gets the disallowed tools set.
+     */
+    public Set<String> getDisallowedTools() {
+        return disallowedTools;
+    }
+
+    /**
+     * Gets the max budget in USD.
+     */
+    public double getMaxBudgetUsd() {
+        return maxBudgetUsd;
+    }
+
+    /**
+     * Gets the fallback model.
+     */
+    public String getFallbackModel() {
+        return fallbackModel;
+    }
+
+    /**
+     * Gets the permission mode.
+     */
+    public PermissionMode getPermissionMode() {
+        return permissionMode;
+    }
+
+    /**
+     * Adds a custom sub-agent definition.
+     *
+     * @param agent the agent definition
+     * @return this builder
+     */
+    public AgentBuilder agent(AgentDefinition agent) {
+        if (agent != null && agent.getName() != null) {
+            this.agents.put(agent.getName(), agent);
+        }
+        return this;
+    }
+
+    /**
+     * Adds multiple custom sub-agent definitions.
+     *
+     * @param agents map of agent name to definition
+     * @return this builder
+     */
+    public AgentBuilder agents(Map<String, AgentDefinition> agents) {
+        if (agents != null) {
+            this.agents.putAll(agents);
+        }
+        return this;
+    }
+
+    /**
+     * Gets the registered agents.
+     */
+    public Map<String, AgentDefinition> getAgents() {
+        return agents;
+    }
+
+    /**
      * Adds a hook for specific event types.
      *
      * @param hook the hook implementation
@@ -303,7 +441,7 @@ public class AgentBuilder {
             throw new IllegalStateException("ChatClient is required");
         }
 
-        return new DefaultAgent(name, instructions, client, tools, defaultOptions, hookEventBus);
+        return new DefaultAgent(name, instructions, client, tools, defaultOptions, hookEventBus, agents);
     }
 
     /**
@@ -327,7 +465,8 @@ public class AgentBuilder {
         public DefaultAgent(String name, String instructions, ChatClient client,
                            List<Map<String, Object>> tools,
                            Map<String, Object> defaultOptions,
-                           HookEventBus hookEventBus) {
+                           HookEventBus hookEventBus,
+                           Map<String, AgentDefinition> agents) {
             super();
             this.name = name;
             this.instructions = instructions;
@@ -335,6 +474,9 @@ public class AgentBuilder {
             this.tools = tools != null ? new ArrayList<>(tools) : new ArrayList<>();
             this.defaultOptions = defaultOptions != null ? new HashMap<>(defaultOptions) : new HashMap<>();
             this.hookEventBus = hookEventBus;
+            if (agents != null) {
+                this.agents.putAll(agents);
+            }
         }
 
         @Override

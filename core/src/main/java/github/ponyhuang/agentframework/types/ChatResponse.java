@@ -334,6 +334,33 @@ public class ChatResponse {
         private final int completionTokens;
         private final int totalTokens;
 
+        // Model pricing constants (USD per 1M tokens)
+        // Anthropic models
+        public static final double CLAUDE_OPUS_4_5_INPUT_PRICE = 15.0;
+        public static final double CLAUDE_OPUS_4_5_OUTPUT_PRICE = 75.0;
+        public static final double CLAUDE_SONNET_4_5_INPUT_PRICE = 3.0;
+        public static final double CLAUDE_SONNET_4_5_OUTPUT_PRICE = 15.0;
+        public static final double CLAUDE_HAIKU_3_5_INPUT_PRICE = 0.8;
+        public static final double CLAUDE_HAIKU_3_5_OUTPUT_PRICE = 4.0;
+        public static final double CLAUDE_3_OPUS_INPUT_PRICE = 15.0;
+        public static final double CLAUDE_3_OPUS_OUTPUT_PRICE = 75.0;
+        public static final double CLAUDE_3_SONNET_INPUT_PRICE = 3.0;
+        public static final double CLAUDE_3_SONNET_OUTPUT_PRICE = 15.0;
+        public static final double CLAUDE_3_HAIKU_INPUT_PRICE = 0.8;
+        public static final double CLAUDE_3_HAIKU_OUTPUT_PRICE = 4.0;
+
+        // OpenAI models
+        public static final double GPT_4O_INPUT_PRICE = 2.5;
+        public static final double GPT_4O_OUTPUT_PRICE = 10.0;
+        public static final double GPT_4O_MINI_INPUT_PRICE = 0.15;
+        public static final double GPT_4O_MINI_OUTPUT_PRICE = 0.6;
+        public static final double GPT_4_TURBO_INPUT_PRICE = 10.0;
+        public static final double GPT_4_TURBO_OUTPUT_PRICE = 30.0;
+        public static final double GPT_4_INPUT_PRICE = 30.0;
+        public static final double GPT_4_OUTPUT_PRICE = 60.0;
+        public static final double GPT_3_5_TURBO_INPUT_PRICE = 0.5;
+        public static final double GPT_3_5_TURBO_OUTPUT_PRICE = 1.5;
+
         public Usage(int promptTokens, int completionTokens, int totalTokens) {
             this.promptTokens = promptTokens;
             this.completionTokens = completionTokens;
@@ -350,6 +377,108 @@ public class ChatResponse {
 
         public int getTotalTokens() {
             return totalTokens;
+        }
+
+        /**
+         * Calculate the cost in USD based on the model.
+         *
+         * @param model the model identifier
+         * @return the cost in USD
+         */
+        public double calculateCostUsd(String model) {
+            if (model == null) {
+                return 0.0;
+            }
+
+            double inputPrice = getInputPrice(model);
+            double outputPrice = getOutputPrice(model);
+
+            return (promptTokens * inputPrice / 1_000_000.0) +
+                   (completionTokens * outputPrice / 1_000_000.0);
+        }
+
+        /**
+         * Get input price per 1M tokens for a model.
+         */
+        private double getInputPrice(String model) {
+            String lowerModel = model.toLowerCase();
+            if (lowerModel.contains("opus")) {
+                if (lowerModel.contains("claude-4") || lowerModel.contains("4-5")) {
+                    return CLAUDE_OPUS_4_5_INPUT_PRICE;
+                }
+                return CLAUDE_3_OPUS_INPUT_PRICE;
+            }
+            if (lowerModel.contains("sonnet")) {
+                if (lowerModel.contains("claude-4") || lowerModel.contains("4-5")) {
+                    return CLAUDE_SONNET_4_5_INPUT_PRICE;
+                }
+                return CLAUDE_3_SONNET_INPUT_PRICE;
+            }
+            if (lowerModel.contains("haiku")) {
+                if (lowerModel.contains("3-5")) {
+                    return CLAUDE_HAIKU_3_5_INPUT_PRICE;
+                }
+                return CLAUDE_3_HAIKU_INPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-4o")) {
+                if (lowerModel.contains("mini")) {
+                    return GPT_4O_MINI_INPUT_PRICE;
+                }
+                return GPT_4O_INPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-4-turbo") || lowerModel.contains("gpt-4-turbo")) {
+                return GPT_4_TURBO_INPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-4")) {
+                return GPT_4_INPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-3.5-turbo") || lowerModel.contains("gpt-35-turbo")) {
+                return GPT_3_5_TURBO_INPUT_PRICE;
+            }
+            // Default to claude 3 haiku pricing
+            return CLAUDE_3_HAIKU_INPUT_PRICE;
+        }
+
+        /**
+         * Get output price per 1M tokens for a model.
+         */
+        private double getOutputPrice(String model) {
+            String lowerModel = model.toLowerCase();
+            if (lowerModel.contains("opus")) {
+                if (lowerModel.contains("claude-4") || lowerModel.contains("4-5")) {
+                    return CLAUDE_OPUS_4_5_OUTPUT_PRICE;
+                }
+                return CLAUDE_3_OPUS_OUTPUT_PRICE;
+            }
+            if (lowerModel.contains("sonnet")) {
+                if (lowerModel.contains("claude-4") || lowerModel.contains("4-5")) {
+                    return CLAUDE_SONNET_4_5_OUTPUT_PRICE;
+                }
+                return CLAUDE_3_SONNET_OUTPUT_PRICE;
+            }
+            if (lowerModel.contains("haiku")) {
+                if (lowerModel.contains("3-5")) {
+                    return CLAUDE_HAIKU_3_5_OUTPUT_PRICE;
+                }
+                return CLAUDE_3_HAIKU_OUTPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-4o")) {
+                if (lowerModel.contains("mini")) {
+                    return GPT_4O_MINI_OUTPUT_PRICE;
+                }
+                return GPT_4O_OUTPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-4-turbo") || lowerModel.contains("gpt-4-turbo")) {
+                return GPT_4_TURBO_OUTPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-4")) {
+                return GPT_4_OUTPUT_PRICE;
+            }
+            if (lowerModel.contains("gpt-3.5-turbo") || lowerModel.contains("gpt-35-turbo")) {
+                return GPT_3_5_TURBO_OUTPUT_PRICE;
+            }
+            // Default to claude 3 haiku pricing
+            return CLAUDE_3_HAIKU_OUTPUT_PRICE;
         }
     }
 

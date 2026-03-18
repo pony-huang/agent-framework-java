@@ -63,6 +63,23 @@ public class SessionManager {
     }
 
     /**
+     * Resume a session from storage.
+     *
+     * @param id the session ID to resume
+     * @return the resumed session, or empty if not found
+     */
+    public Optional<Session> resumeSession(String id) {
+        Optional<Session> session = getSession(id);
+        if (session.isPresent()) {
+            session.get().updateLastActiveTime();
+            LOG.info("Resumed session: {}", id);
+        } else {
+            LOG.warn("Session not found for resume: {}", id);
+        }
+        return session;
+    }
+
+    /**
      * Deletes a session.
      *
      * @param id the session ID

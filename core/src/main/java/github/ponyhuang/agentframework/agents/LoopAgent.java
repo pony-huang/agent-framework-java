@@ -15,8 +15,10 @@ import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -97,11 +99,21 @@ public class LoopAgent extends BaseAgent {
 
     private final ToolExecutor toolExecutor;
     private final int maxSteps;
+    private final CostTracker costTracker;
+    private final Set<String> allowedTools;
+    private final Set<String> disallowedTools;
+    private final String fallbackModel;
+    private final PermissionMode permissionMode;
 
     protected LoopAgent(Builder builder) {
         super(builder);
         this.toolExecutor = builder.toolExecutor;
         this.maxSteps = builder.maxSteps;
+        this.costTracker = new CostTracker(builder.maxBudgetUsd);
+        this.allowedTools = builder.allowedTools;
+        this.disallowedTools = builder.disallowedTools;
+        this.fallbackModel = builder.fallbackModel;
+        this.permissionMode = builder.permissionMode;
     }
 
     @Override
@@ -165,7 +177,87 @@ public class LoopAgent extends BaseAgent {
                             .build();
 
                     // Call LLM (blocking - wrapped in Mono for async semantics)
-                    ChatResponse response = client.chat(params);
+                    ChatResponse response = null;
+                    Exception lastException = null;
+
+                    try {
+                        response = client.chat(params);
+                    } catch (Exception e) {
+                        LOG.warn("Primary model failed: {}", e.getMessage());
+                        lastException = e;
+
+                        // Try fallback model if configured
+                        if (fallbackModel != null && !fallbackModel.isEmpty()) {
+                            LOG.info("Attempting fallback model: {}", fallbackModel);
+                            try {
+                                ChatCompleteParams fallbackParams = ChatCompleteParams.builder()
+                                        .messages(convMessages)
+                                        .tools(toolSchemas)
+                                        .model(fallbackModel)
+                                        .build();
+                                response = client.chat(fallbackParams);
+                                lastException = null;
+                                LOG.info("Fallback model succeeded");
+                            } catch (Exception fallbackError) {
+                                LOG.warn("Fallback model also failed: {}", fallbackError.getMessage());
+                                lastException = fallbackError;
+                            }
+                        }
+                    }
+
+                    // If both primary and fallback failed, throw exception
+                    if (response == null && lastException != null) {
+                        String errorMsg = "All models failed. Primary error: " + lastException.getMessage();
+                        LOG.error(errorMsg);
+                        Message errorMessage = github.ponyhuang.agentframework.types.message.UserMessage.create(errorMsg);
+                        List<Message> errorMessages = new ArrayList<>(convMessages);
+                        errorMessages.add(errorMessage);
+
+                        // Try one more time with a simple message to get a response
+                        try {
+                            ChatResponse errorResponse = client.chat(ChatCompleteParams.builder()
+                                    .messages(errorMessages)
+                                    .build());
+                            if (errorResponse.getMessage() != null) {
+                                convMessages.add(errorResponse.getMessage());
+                                sink.next(errorResponse.getMessage());
+                            }
+                        } catch (Exception ignored) {
+                            // Last resort - just complete
+                        }
+                        sink.complete();
+                        return convMessages;
+                    }
+
+                    // Track cost from response
+                    if (response.getUsage() != null && !costTracker.isUnlimited()) {
+                        double cost = response.getUsage().calculateCostUsd(response.getModel());
+                        costTracker.addCost(cost);
+
+                        // Check if budget exceeded
+                        if (costTracker.isBudgetExceeded()) {
+                            LOG.warn("Budget exceeded: ${}/{}", costTracker.getTotalCostUsd(), costTracker.getMaxBudgetUsd());
+                            String budgetExceededMsg = """
+                                The maximum budget has been exceeded. Cost: $""" + String.format("%.4f", costTracker.getTotalCostUsd()) + """
+                                Budget: $""" + String.format("%.4f", costTracker.getMaxBudgetUsd()) + """
+                                Please provide a summary of what has been accomplished so far.
+                                """;
+                            Message budgetMsg = github.ponyhuang.agentframework.types.message.UserMessage.create(budgetExceededMsg);
+                            List<Message> budgetMessages = new ArrayList<>(convMessages);
+                            budgetMessages.add(budgetMsg);
+
+                            ChatResponse budgetResponse = client.chat(ChatCompleteParams.builder()
+                                    .messages(budgetMessages)
+                                    .build());
+
+                            if (budgetResponse.getMessage() != null) {
+                                convMessages.add(budgetResponse.getMessage());
+                                sink.next(budgetResponse.getMessage());
+                            }
+                            sink.complete();
+                            return convMessages;
+                        }
+                    }
 
                     // Add assistant message to conversation
                     convMessages.add(response.getMessage());
@@ -193,6 +285,22 @@ public class LoopAgent extends BaseAgent {
                     String toolCallId = toolCall.getId();
 
                     LOG.info("Executing tool: {}", functionName);
+
+                    // Check permission mode - PLAN mode blocks tool execution
+                    if (permissionMode == PermissionMode.PLAN) {
+                        String planModeMsg = "PLAN mode is enabled. Tool execution is disabled. Please provide a plan or analysis without executing tools.";
+                        Message planMessage = ResultMessage.create(toolCallId, planModeMsg);
+                        convMessages.add(planMessage);
+                        return convMessages;
+                    }
+
+                    // Check if tool is in disallowed list
+                    if (disallowedTools != null && !disallowedTools.isEmpty() && disallowedTools.contains(functionName)) {
+                        String deniedMsg = "Tool '" + functionName + "' is explicitly disallowed by agent configuration.";
+                        Message deniedMessage = ResultMessage.create(toolCallId, deniedMsg);
+                        convMessages.add(deniedMessage);
+                        return convMessages;
+                    }
 
                     // Execute tool
                     Object toolResult;
@@ -235,6 +343,41 @@ public class LoopAgent extends BaseAgent {
     }
 
     /**
+     * Get the cost tracker for budget enforcement.
+     */
+    public CostTracker getCostTracker() {
+        return costTracker;
+    }
+
+    /**
+     * Get the allowed tools set.
+     */
+    public Set<String> getAllowedTools() {
+        return allowedTools;
+    }
+
+    /**
+     * Get the disallowed tools set.
+     */
+    public Set<String> getDisallowedTools() {
+        return disallowedTools;
+    }
+
+    /**
+     * Get the fallback model.
+     */
+    public String getFallbackModel() {
+        return fallbackModel;
+    }
+
+    /**
+     * Get the permission mode.
+     */
+    public PermissionMode getPermissionMode() {
+        return permissionMode;
+    }
+
+    /**
      * Create a new LoopAgent builder.
      */
     public static Builder builder() {
@@ -250,6 +393,13 @@ public class LoopAgent extends BaseAgent {
         private ToolExecutor toolExecutor;
         private int maxSteps = DEFAULT_MAX_STEPS;
         private String workingDirectory = System.getProperty("user.dir");
+
+        // Alignment features
+        private Set<String> allowedTools = new HashSet<>();
+        private Set<String> disallowedTools = new HashSet<>();
+        private double maxBudgetUsd = 0.0;
+        private String fallbackModel;
+        private PermissionMode permissionMode = PermissionMode.DEFAULT;
 
         /**
          * Sets the working directory for file system and shell operations.
@@ -307,6 +457,50 @@ public class LoopAgent extends BaseAgent {
 
         public Builder maxSteps(int maxSteps) {
             this.maxSteps = maxSteps;
+            return this;
+        }
+
+        /**
+         * Sets the tools that are auto-approved (always allowed).
+         */
+        public Builder allowedTools(Set<String> allowedTools) {
+            if (allowedTools != null) {
+                this.allowedTools = new HashSet<>(allowedTools);
+            }
+            return this;
+        }
+
+        /**
+         * Sets the tools that are explicitly disallowed (always denied).
+         */
+        public Builder disallowedTools(Set<String> disallowedTools) {
+            if (disallowedTools != null) {
+                this.disallowedTools = new HashSet<>(disallowedTools);
+            }
+            return this;
+        }
+
+        /**
+         * Sets the maximum budget in USD for the agent execution.
+         */
+        public Builder maxBudgetUsd(double maxBudgetUsd) {
+            this.maxBudgetUsd = maxBudgetUsd > 0 ? maxBudgetUsd : 0.0;
+            return this;
+        }
+
+        /**
+         * Sets the fallback model to use when the primary model fails.
+         */
+        public Builder fallbackModel(String fallbackModel) {
+            this.fallbackModel = fallbackModel;
+            return this;
+        }
+
+        /**
+         * Sets the permission mode for tool execution.
+         */
+        public Builder permissionMode(PermissionMode permissionMode) {
+            this.permissionMode = permissionMode != null ? permissionMode : PermissionMode.DEFAULT;
             return this;
         }
 
