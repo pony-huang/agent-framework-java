@@ -45,6 +45,10 @@ Run a single test:
 - **Hooks**: Lifecycle event system in `hooks` package - CommandHookHandler, PromptHookHandler, HttpHookHandler for agent customization
 - **AgentSession**: Conversation state with HistoryProvider and ContextProvider
 - **Workflows**: Graph-based workflow engine for complex agent orchestration
+- **CostTracker**: Budget tracking and cost calculation
+- **PermissionMode**: Tool execution permission control (DEFAULT, ACCEPT_EDITS, PLAN, BYPASS)
+- **AgentDefinition**: Custom sub-agent definitions
+- **Session**: Fork and resume conversation support
 
 ### Execution Flow
 
