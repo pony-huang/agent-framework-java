@@ -15,6 +15,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,7 @@ public class LoopAgent extends BaseAgent {
     private final Set<String> disallowedTools;
     private final String fallbackModel;
     private final PermissionMode permissionMode;
+    private final Map<String, AgentDefinition> agents;
 
     protected LoopAgent(Builder builder) {
         super(builder);
@@ -114,6 +116,7 @@ public class LoopAgent extends BaseAgent {
         this.disallowedTools = builder.disallowedTools;
         this.fallbackModel = builder.fallbackModel;
         this.permissionMode = builder.permissionMode;
+        this.agents = builder.agents;
     }
 
     @Override
@@ -378,6 +381,13 @@ public class LoopAgent extends BaseAgent {
     }
 
     /**
+     * Get the registered agents.
+     */
+    public Map<String, AgentDefinition> getAgents() {
+        return agents;
+    }
+
+    /**
      * Create a new LoopAgent builder.
      */
     public static Builder builder() {
@@ -400,6 +410,7 @@ public class LoopAgent extends BaseAgent {
         private double maxBudgetUsd = 0.0;
         private String fallbackModel;
         private PermissionMode permissionMode = PermissionMode.DEFAULT;
+        private Map<String, AgentDefinition> agents = new HashMap<>();
 
         /**
          * Sets the working directory for file system and shell operations.
@@ -501,6 +512,16 @@ public class LoopAgent extends BaseAgent {
          */
         public Builder permissionMode(PermissionMode permissionMode) {
             this.permissionMode = permissionMode != null ? permissionMode : PermissionMode.DEFAULT;
+            return this;
+        }
+
+        /**
+         * Sets custom sub-agent definitions.
+         */
+        public Builder agents(Map<String, AgentDefinition> agents) {
+            if (agents != null) {
+                this.agents.putAll(agents);
+            }
             return this;
         }
 

@@ -1,6 +1,7 @@
 package github.ponyhuang.agentframework.samples;
 
 import github.ponyhuang.agentframework.agents.LoopAgent;
+import github.ponyhuang.agentframework.agents.PermissionMode;
 import github.ponyhuang.agentframework.providers.ChatClient;
 import github.ponyhuang.agentframework.types.block.Block;
 import github.ponyhuang.agentframework.types.block.TextBlock;
@@ -11,6 +12,7 @@ import github.ponyhuang.agentframework.types.message.Message;
 import github.ponyhuang.agentframework.types.message.UserMessage;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Example showing how to use LoopAgent for multi-turn ReAct execution.
@@ -61,6 +63,11 @@ public class LoopAgentExample {
                 .instructions("You are a helpful assistant.")
                 .client(client)
                 .maxSteps(30)
+                // New alignment features:
+                .maxBudgetUsd(1.00)  // Limit costs to $1.00
+                .fallbackModel("claude-haiku-3-5")  // Fallback if primary fails
+                .permissionMode(PermissionMode.DEFAULT)  // Allow tool execution
+                //.disallowedTools(Set.of("Bash"))  // Uncomment to block specific tools
                 .build();
 
         // Run the agent
